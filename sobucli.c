@@ -15,17 +15,16 @@
 
 extern int errno;
 
-/* variables accessed in sighandler() for printing success/error messages */
+/* variables used in sighandler() for printing success/error messages */
 static char last_cmd;
 static char* last_file;
 
 char get_cmd_abbrev(const char* cmd);
 int validate_cmd(int argc, const char* cmd, char cmd_abbrev);
-void send_cmds(int fifo_fd, int argc, char* argv[], char cmd_abbrev);
+void send_cmd(int fifo_fd, int argc, char* argv[], char cmd_abbrev);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
-	pid_t p;
 	int i, fifo_fd;
 	char base_path[PATH_MAX];
 	char cmd_abbrev, *resolved_path;
@@ -139,7 +138,7 @@ void send_cmd(int fifo_fd, char cmd_abbrev, const char* resolved_path){
 					kill(p, SIGINT);
 	}
 	else if(dir != NULL){
-			/* resolved_path is a directory. Choose what to do! */
+		/* resolved_path is a directory. Choose what to do! */
 	}
 	else
 		perror("opendir");
