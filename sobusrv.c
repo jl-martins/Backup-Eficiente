@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "headers.h"
 #include "backup.h"
 #include "comando.h"
@@ -14,7 +15,8 @@
 */ 
 
 int backup(){
-	
+	return 0;
+}	
 
 int execComando(Comando cmd){
 	char codigo_comando = get_codigoComando(cmd);
@@ -24,15 +26,18 @@ int execComando(Comando cmd){
 		case 'b': file = get_filepath(cmd);
 		 	  ret = backup(file);
 			  free(file); 	
+			  break;
 		case 'r':
-		default: return -1;
+			  break;
+	}
+	return ret;
 }
 
 int main(){
 	int i;
 	int fifo = open("~/.Backup/comandos",  O_RDONLY); /* subsitutir por HOME, criar fifo se nao houver */
-	if(fd == -1)
-		return -1;
+	if(fifo == -1)
+		_exit(-1);
 	/* fazer comando no cliente que indica que a transferencia de dados acabou para poder matar processo de sinais */
 
 	/* termina o programa mas deixa os processos em execução */
@@ -43,15 +48,15 @@ int main(){
 		if(!fork()){
 			int r;
 			Comando cmd = aloca_comando(); /* verificar se da null*/ 
-			if(cmd == null){
+			if(cmd == NULL){
 				printf("Erro mem\n");
-				_exit(); /* necessario propagar exit para todos os processos */
+				_exit(-2); /* necessario propagar exit para todos os processos */
 			}
 				
-			r = read(fifo, cmd, sizeof(struct comando));
-			if(r != sizeof(struct comando)){
+			r = read(fifo, cmd, tamanhoComando());
+			if(r != tamanhoComando()){
 				printf("Erro de leitura do comando");
-				_exit(); /* necessario propagar exit para todos os processos */
+				_exit(-3); /* necessario propagar exit para todos os processos */
 			}
 			r = execComando(cmd);
 			if(r == 0)
@@ -64,10 +69,11 @@ int main(){
 		}
 	}
 	
-	while(wait()){
+	while(wait(&i)){
 		if(!fork()){
+			Comando cmd = aloca_comando(); /* verificar se da null*/ 
 			/* readline(fd, cmd, sizeof(COMANDO)); deve ser um read e nao um readline*/
-			read(fifo, cmd, sizeof(struct comando));
+			read(fifo, cmd, tamanhoComando());
 			execComando(cmd);
 			break;
 		}
@@ -75,7 +81,6 @@ int main(){
 	_exit(0);
 }
 
-/* a exec comando deve mandar o sinal */
 
 /* fazer syshandlers */
 /* void sigHandler(int signal){
