@@ -9,8 +9,12 @@ struct package{
 	char buf[BUF_SIZE]; /* Deste tamanho para assegurar que os reads e writes de uma struct pacote sao atomicas */
 }
 
-PACKAGE newPACKAGE(){
+PACKAGE newPACKAGE(int isComand, pid_t pidSender){
 	PACKAGE new = malloc(sizeof(struct package));
+	if(new){
+		new->isComand = isComand;
+		new->pidSender = pidSender;
+	}
 	return new;
 }
 
