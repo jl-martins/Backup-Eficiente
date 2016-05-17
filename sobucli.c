@@ -6,6 +6,7 @@
 #include <stdio.h> /* perror() */
 #include <stdlib.h>
 #include <string.h> /* memcpy() e strlen() */
+#include "comando.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -25,18 +26,31 @@ void send_cmd(int fifo_fd, int argc, char* argv[], char cmd_abbrev);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
-	int i, fifo_fd;
-	char base_path[PATH_MAX];
+	int i, fifo_fd, err_fd;
+	char backup_path[PATH_MAX];
 	char cmd_abbrev, *resolved_path;
 
 	cmd_abbrev = get_cmd_abbrev(argv[1]);
 	if(validate_cmd(argc, cmd, cmd_abbrev) == 0)
 		_exit(1);
 
-	strcpy(base_path, getenv("HOME"));
-	strcat(base_path, "/.Backup/fifo");
-	fifo_fd = open(base_path, O_WRONLY);
-	if(fifo_fd == -1)
+	strcpy(backup_path, getenv("HOME"));
+	strcat(backup_path, "/.Backup");
+	if(chdir(backup_path) == -1)
+		PERROR_AND_EXIT("chdir")
+
+	err_fd = open("err_log.txt", O_WRONLY | O_APPEND);
+	if(err_fd == -1)
+		PERROR_AND_EXIT("open")
+	
+	/* redirect stderr to err_fd */
+	if(dup2(err_fd, 2) == -1)
+		PERROR_AND_EXIT("dup2")
+	else
+		close(err_fd);
+
+	fifo_fd = open("fifo", O_WRONLY);
+	if(fifo_fd == -1);
 		PERROR_AND_EXIT("open")
 
 	if(signal(SIGUSR1, sighandler) == SIG_ERR || signal(SIGUSR2, sighandler) == SIG_ERR)
@@ -56,7 +70,7 @@ int main(int argc, char* argv[]){
 
 void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 	switch(sig){ 
-		case SIGUSR1:
+		case SIGUSR1: /* successful operation */
 			if(last_cmd == 'b')
 				printf("%s: copied.\n", last_file);
 			else if(last_cmd == 'r')
@@ -65,15 +79,23 @@ void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 				printf("%s: deleted\n", last_file);
 			else /* last_cmd == 'g' */
 				puts("gc: Success");
-		case SIGUSR2:
-			if(last_cmd == 'b')
+		case SIGUSR2: /* failed operation */
+			if(last_cmd == 'b'){
 				printf("[ERROR] Failure copying '%s'\n", last_file);
-			else if(last_cmd == 'r')
+				fprintf(stderr, "[ERROR] Failure copying '%s'\n", last_file);
+			}
+			else if(last_cmd == 'r'){
 				printf("[ERROR] Failure restoring '%s'\n", last_file);
-			else if(last_cmd == 'd')
+				fprintf(stderr, "[ERROR] Failure restoring '%s'\n", last_file);
+			}
+			else if(last_cmd == 'd'){
 				printf("[ERROR] Failure deleting '%s'\n", last_file);
-			else /* last_cmd == 'g' */
+				fprintf(stderr, "[ERROR] Failure deleting '%s'\n", last_file);
+			}
+			else{ /* last_cmd == 'g' */
 				puts("[ERROR] gc failed");
+				fputs("[ERROR] gc failed", stderr);
+			}
 	}
 }
 
@@ -117,6 +139,7 @@ int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
 void send_cmd(int fifo_fd, char cmd_abbrev, const char* resolved_path){
 	pid_t p;
 	DIR* dir;
+	Comando cmd;
 
 	/* Não escrever '\0'!!! nas Strings */
 	dir = opendir(resolved_path);
@@ -133,9 +156,13 @@ void send_cmd(int fifo_fd, char cmd_abbrev, const char* resolved_path){
 				perror("fork");
 				_exit(1);
 			default: /* I'm the parent */
-				cmd = create_cmd(p, resolved_path);
-				if(write(fifo_fd, cmd, sizeof(struct cmd_s)) == -1)
+				if(strlen(resolved_path) >= 2048)
+					resolved_path[2048] = '\0'; /* truncate resolved_path to 2048 bytes */
+				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
+				free(resolved_path);
+				if(write(fifo_fd, cmd, sizeof(struct comando)) == -1)
 					kill(p, SIGINT);
+				break;
 	}
 	else if(dir != NULL){
 		/* resolved_path is a directory. Choose what to do! */
@@ -143,4 +170,3 @@ void send_cmd(int fifo_fd, char cmd_abbrev, const char* resolved_path){
 	else
 		perror("opendir");
 }
-
