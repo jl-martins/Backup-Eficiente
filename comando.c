@@ -19,6 +19,7 @@ Comando aloca_inicializa_comando(char codigoComando, char * filepath){
 	Comando new = malloc(sizeof(struct comando));
 	strcpy(new->filepath, filepath);	
 	new->pid = getpid();
+	new->codigoComando = codigoComando;
 	return new;
 }
 
