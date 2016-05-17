@@ -1,5 +1,6 @@
 #include "headers.h"
 #include "backup.h"
+#include "comando.h"
 
 /* Todo:
  * - Testar getLine e faze-la atomica
@@ -12,13 +13,24 @@
  * - gc em paralelo 
 */ 
 
-int execComando(Comando cmd){
+int backup(){
 	
+
+int execComando(Comando cmd){
+	char codigo_comando = get_codigoComando(cmd);
+	int ret;
+	char * file;
+	switch(codigo_comando){
+		case 'b': file = get_filepath(cmd);
+		 	  ret = backup(file);
+			  free(file); 	
+		case 'r':
+		default: return -1;
 }
 
 int main(){
 	int i;
-	int fd = open("~/.Backup/comandos",  O_RDONLY); /* subsitutir por HOME, criar fifo se nao houver */
+	int fifo = open("~/.Backup/comandos",  O_RDONLY); /* subsitutir por HOME, criar fifo se nao houver */
 	if(fd == -1)
 		return -1;
 	/* fazer comando no cliente que indica que a transferencia de dados acabou para poder matar processo de sinais */
@@ -30,14 +42,22 @@ int main(){
 	for(i = 0; i < 5; i++){
 		if(!fork()){
 			int r;
-			struct comando * cmd;
-			
-			readline(fd, cmd, sizeof(struct comando));/* obtem um comando que está no fifo */
+			Comando cmd = aloca_comando(); /* verificar se da null*/ 
+			if(cmd == null){
+				printf("Erro mem\n");
+				_exit(); /* necessario propagar exit para todos os processos */
+			}
+				
+			r = read(fifo, cmd, sizeof(struct comando));
+			if(r != sizeof(struct comando)){
+				printf("Erro de leitura do comando");
+				_exit(); /* necessario propagar exit para todos os processos */
+			}
 			r = execComando(cmd);
 			if(r == 0)
-				kill(getPidComando(cmd), SIGUSR1);
+				kill(get_pid_comando(cmd), SIGUSR1);
 			else 
-				kill(getPidComando(cmd), SIGUSR2);
+				kill(get_pid_comando(cmd), SIGUSR2);
 			break;
 			/* definir como proceder quando le uma linha (onde é que a deve escrever, gerir o numero de processos abertos, etc) */
 		/*fazer com um ciclo com waits */
@@ -46,7 +66,8 @@ int main(){
 	
 	while(wait()){
 		if(!fork()){
-			readline(fd, cmd, sizeof(COMANDO));
+			/* readline(fd, cmd, sizeof(COMANDO)); deve ser um read e nao um readline*/
+			read(fifo, cmd, sizeof(struct comando));
 			execComando(cmd);
 			break;
 		}
