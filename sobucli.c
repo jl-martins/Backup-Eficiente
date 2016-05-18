@@ -21,16 +21,17 @@
 extern int errno;
 
 /* variables used in sighandler() for printing success/error messages */
+static int fifo_fd;
 static char last_cmd;
 static char* last_file;
 
 char get_cmd_abbrev(const char* cmd);
 int validate_cmd(int argc, const char* cmd, char cmd_abbrev);
-void send_cmd(int fifo_fd, char cmd_abbrev, char* arg_path, char* resolved_path);
+void send_cmd(char backup_path[], char cmd_abbrev, char* arg_path, char* resolved_path);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
-	int i, fifo_fd/*, err_fd*/;
+	int i/*, err_fd*/;
 	/*char err_path[MAX_PATH];*/
 	char backup_path[MAX_PATH];
 	char cmd_abbrev, *resolved_path;
@@ -55,10 +56,6 @@ int main(int argc, char* argv[]){
 	else
 		close(err_fd);*/
 
-	fifo_fd = open(backup_path, O_WRONLY);
-	if(fifo_fd == -1)
-		PERROR_AND_EXIT("open")
-
 	if(signal(SIGUSR1, sighandler) == SIG_ERR || signal(SIGUSR2, sighandler) == SIG_ERR)
 		PERROR_AND_EXIT("signal")
 
@@ -67,7 +64,7 @@ int main(int argc, char* argv[]){
 		if(resolved_path == NULL)
 			perror("realpath");
 		else if(strlen(resolved_path) <= MAX_PATH){
-			send_cmd(fifo_fd, cmd_abbrev, argv[i], resolved_path);
+			send_cmd(backup_path, cmd_abbrev, argv[i], resolved_path);
 			free(resolved_path);
 		}
 	}
@@ -150,14 +147,19 @@ int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
 	return r;
 }
 
-void send_cmd(int fifo_fd, char cmd_abbrev, char* arg_path, char* resolved_path){
+void send_cmd(char backup_path[], char cmd_abbrev, char* arg_path, char* resolved_path){
 	DIR* dir;
+	int fifo_fd;
 	Comando cmd;
 
 	dir = opendir(resolved_path);
 	if(errno == ENOTDIR){ /* user entered a file */
 		switch(fork()){
 			case 0: /* I'm the child */
+				fifo_fd = open(backup_path, O_WRONLY);
+				if(fifo_fd == -1)
+					PERROR_AND_EXIT("open")
+				
 				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
 				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
 					PERROR_AND_EXIT("write");
