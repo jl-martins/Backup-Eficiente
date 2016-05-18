@@ -5,10 +5,11 @@
 #include "comando.h"
 #define TAMANHO_SHA1SUM 40 
 #define SIZE_READS 4096
+#define SEPARADOR 31
 /* Todo:
  * - script de instalação
  * - struct de comando
- * - ver o que acontece quando temos dois processos sobre o mesmo ficheiro
+ * - ver o que acontece quando temos dois processos sobre o mesmo ficheiro (podem ser sessoes diferentes - impedir a todo o custo 
  * - por a enviar ficeiros pelos pipes em vez de o fazer noservidor - nesse caso basta fazer 2 fifos adicionais, um para restore e outro para backup - ver como o fazer para varios clientes, comunicar dados através de uma estrutura de dados "dados"
  * - restore
  * - backup
@@ -76,9 +77,17 @@ void zipFile(char * filepath, char * newFile){
 	}	
 }
 
+void parse_path(char * path){
+	for( ; path[0]; path++){
+		if(path[0] == '/')
+			path[0] = SEPARADOR;
+	}
+}
+
 int backup(char * file){
 
 	char path_sha1_data[MAX_PATH];
+	char path_link_metadata[MAX_PATH];
 	char * sha1 = sha1sum(file);
 
 	strcpy(path_sha1_data, data_path);
@@ -86,12 +95,19 @@ int backup(char * file){
 	strcat(path_sha1_data, ".gz");
 	free(sha1);
 	
+	/* local na metadata */
+	strcpy(path_link_metadata, metadata_path);
+	
+	
 	if(access(path_sha1_data, F_OK) != -1){ // se o ficheiro existe 
 		// regista o link se o nome nao estivera ser usado 					
 	}else{
 		// regista o link e faz o zip 
 		if(!fork()){
 			zipFile(file, path_sha1_data);	
+			parse_path(file);
+			strcat(path_link_metadata, file);
+			symlink(path_sha1_data, path_link_metadata); 
 		}
 	}
 	
@@ -155,11 +171,11 @@ int main(){
 
 	/* setup do local da metadata */
 	strcpy(metadata_path, backup_path);
-	strcat(metadata_path, "/metadata/");
+	strcat(metadata_path, "metadata/");
 
 	/* setup do local da data */
 	strcpy(data_path, backup_path);
-	strcat(data_path, "/data/");
+	strcat(data_path, "data/");
 
 	/* termina o programa mas deixa os processos em execução */
 	if(fork())
