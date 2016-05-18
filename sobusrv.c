@@ -18,8 +18,6 @@
 
 /* ver como me certificar que os ficheiros sao escritos por ordem correta (tenho que garantir que as linhas sao escritas pela ordem certa no ficheiro, apesar de poderem ser escritas por varios processos */
 
-void mysleep(int 
-
 int backup(){
 	return 0;
 }	
@@ -83,6 +81,7 @@ int main(){
 	while(wait(NULL)){
 		if(!fork()){
 			setupComando(fifo);
+			_exit(0);
 		}
 	}	
 	_exit(0);
