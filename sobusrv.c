@@ -13,7 +13,12 @@
  * - backup
  * - delete(em paralelo)
  * - gc em paralelo 
+ * - ficheiro de log
 */ 
+
+/* ver como me certificar que os ficheiros sao escritos por ordem correta (tenho que garantir que as linhas sao escritas pela ordem certa no ficheiro, apesar de poderem ser escritas por varios processos */
+
+void mysleep(int 
 
 int backup(){
 	return 0;
@@ -36,11 +41,14 @@ int execComando(Comando cmd){
 
 void setupComando(int fifo){
 	int r;
+	ssize_t bytesLidos;
 	Comando cmd = aloca_comando(); /* verificar se da null*/ 
 	if(cmd == NULL)
 		printf("Erro de memoria. O servidor deve ser reiniciado para assegurar maxima performance\n");
-		
-	if(read(fifo, cmd, tamanhoComando()) != tamanhoComando()){
+	
+	while((bytesLidos = read(fifo, cmd, tamanhoComando())) == 0)
+		/* sleep */	
+	if(bytesLidos != tamanhoComando()){
 		printf("Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
 		kill(-getppid(), SIGQUIT);
 	}
@@ -57,10 +65,9 @@ int main(){
 	strcpy(backup_path, getenv("HOME"));
 	strcat(backup_path, "/.Backup/fifo");
 
-	fifo = open(backup_path,  O_RDONLY); /* subsitutir por HOME, criar fifo se nao houver */
+	fifo = open(backup_path,  O_RDONLY); 
 	if(fifo == -1)
 		_exit(-1);
-	/* fazer comando no cliente que indica que a transferencia de dados acabou para poder matar processo de sinais */
 
 	/* termina o programa mas deixa os processos em execução */
 	if(fork())
@@ -69,13 +76,14 @@ int main(){
 	for(i = 0; i < 5; i++){
 		if(!fork()){
 			setupComando(fifo);
-			break;
+			_exit(0);
 		}
 	}
-	
-	while(wait(&i)){
-		if(!fork())
+		
+	while(wait(NULL)){
+		if(!fork()){
 			setupComando(fifo);
+		}
 	}	
 	_exit(0);
 }
