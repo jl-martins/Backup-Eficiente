@@ -34,7 +34,7 @@ int main(int argc, char* argv[]){
 	char backup_path[MAX_PATH];
 	char cmd_abbrev, *resolved_path;
 
-	cmd_abbrev = get_cmd_abbrev(argv[1]);
+	cmd_abbrev = (argc > 1) ? get_cmd_abbrev(argv[1]) : '\0';
 	if(validate_cmd(argc, argv[1], cmd_abbrev) == 0)
 		_exit(1);
 
@@ -54,7 +54,7 @@ int main(int argc, char* argv[]){
 	else
 		close(err_fd);*/
 
-	fifo_fd = open("fifo", O_WRONLY);
+	fifo_fd = open(backup_path, O_WRONLY);
 	if(fifo_fd == -1)
 		PERROR_AND_EXIT("open")
 
