@@ -42,12 +42,18 @@ void setupComando(int fifo){
 	Comando cmd = aloca_comando(); /* verificar se da null*/ 
 	if(cmd == NULL)
 		printf("Erro de memoria. O servidor deve ser reiniciado para assegurar maxima performance\n");
-	
-	if((r = read(fifo, cmd, tamanhoComando())) != tamanhoComando() && r){
+	r = read(fifo, cmd, tamanhoComando());
+	if(r == 0){
+		free(cmd);
+		return;
+	}
+	if(r != tamanhoComando()){
+		free(cmd);	
 		printf("Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
 		kill(-getppid(), SIGKILL);
 	}
 	r = execComando(cmd);
+	free(cmd);	
 	if(r == 0)
 		kill(get_pid_comando(cmd), SIGUSR1);
 	else 
@@ -61,14 +67,18 @@ int main(){
 	strcpy(backup_path, getenv("HOME"));
 	strcat(backup_path, "/.Backup/fifo");
 
+	/* termina o programa mas deixa os processos em execução */
+	if(fork())
+		_exit(0);	
+	if(fork()){
+		fifo = open(backup_path,  O_WRONLY); 
+		pause();
+		_exit(-1);
+	}
 	fifo = open(backup_path,  O_RDONLY); 
 	if(fifo == -1)
 		_exit(-1);
 
-	/* termina o programa mas deixa os processos em execução */
-	if(fork())
-		_exit(0);
-	
 	for(i = 0; i < 5; i++){
 		if(!fork()){
 			setupComando(fifo);
