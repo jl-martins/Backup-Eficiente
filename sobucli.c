@@ -21,23 +21,22 @@
 extern int errno;
 
 /* variables used in sighandler() for printing success/error messages */
-static int fifo_fd;
-static char last_cmd;
+static char cmd_abbrev;
 static char* last_file;
 
 char get_cmd_abbrev(const char* cmd);
-int validate_cmd(int argc, const char* cmd, char cmd_abbrev);
-void send_cmd(char backup_path[], char cmd_abbrev, char* arg_path, char* resolved_path);
+int validate_cmd(int argc, const char* cmd);
+void send_cmd(int fifo_fd, char* arg_path, char* resolved_path);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
-	int i/*, err_fd*/;
+	int i, fifo_fd/*, err_fd*/;
 	/*char err_path[MAX_PATH];*/
+	char *resolved_path;
 	char backup_path[MAX_PATH];
-	char cmd_abbrev, *resolved_path;
 
 	cmd_abbrev = (argc > 1) ? get_cmd_abbrev(argv[1]) : '\0';
-	if(validate_cmd(argc, argv[1], cmd_abbrev) == 0)
+	if(validate_cmd(argc, argv[1]) == 0)
 		_exit(1);
 
 	strcpy(backup_path, getenv("HOME"));
@@ -56,6 +55,10 @@ int main(int argc, char* argv[]){
 	else
 		close(err_fd);*/
 
+	fifo_fd = open(backup_path, O_WRONLY);
+	if(fifo_fd == -1)
+		PERROR_AND_EXIT("open")
+
 	if(signal(SIGUSR1, sighandler) == SIG_ERR || signal(SIGUSR2, sighandler) == SIG_ERR)
 		PERROR_AND_EXIT("signal")
 
@@ -64,7 +67,7 @@ int main(int argc, char* argv[]){
 		if(resolved_path == NULL)
 			perror("realpath");
 		else if(strlen(resolved_path) <= MAX_PATH){
-			send_cmd(backup_path, cmd_abbrev, argv[i], resolved_path);
+			send_cmd(fifo_fd, argv[i], resolved_path);
 			free(resolved_path);
 		}
 	}
@@ -78,30 +81,30 @@ int main(int argc, char* argv[]){
 void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 	switch(sig){ 
 		case SIGUSR1: /* successful operation */
-			if(last_cmd == 'b')
+			if(cmd_abbrev == 'b')
 				printf("%s: copied.\n", last_file);
-			else if(last_cmd == 'r')
+			else if(cmd_abbrev == 'r')
 				printf("%s: restored\n", last_file);
-			else if(last_cmd == 'd')
+			else if(cmd_abbrev == 'd')
 				printf("%s: deleted\n", last_file);
-			else /* last_cmd == 'g' */
+			else /* cmd_abbrev == 'g' */
 				puts("gc: Success");
 			_exit(0);
 			break;
 		case SIGUSR2: /* failed operation */
-			if(last_cmd == 'b'){
+			if(cmd_abbrev == 'b'){
 				printf("[ERROR] Failure copying '%s'\n", last_file);
 				fprintf(stderr, "[ERROR] Failure copying '%s'\n", last_file);
 			}
-			else if(last_cmd == 'r'){
+			else if(cmd_abbrev == 'r'){
 				printf("[ERROR] Failure restoring '%s'\n", last_file);
 				fprintf(stderr, "[ERROR] Failure restoring '%s'\n", last_file);
 			}
-			else if(last_cmd == 'd'){
+			else if(cmd_abbrev == 'd'){
 				printf("[ERROR] Failure deleting '%s'\n", last_file);
 				fprintf(stderr, "[ERROR] Failure deleting '%s'\n", last_file);
 			}
-			else{ /* last_cmd == 'g' */
+			else{ /* cmd_abbrev == 'g' */
 				puts("[ERROR] gc failed");
 				fputs("[ERROR] gc failed", stderr);
 			}
@@ -112,21 +115,21 @@ void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 
 /* Returns a command abbreviation for the given command or '\0' on invalid command. */
 char get_cmd_abbrev(const char* cmd){
-	char cmd_abbrev = '\0';
+	char r = '\0';
 
 	if(!strcmp(cmd, "backup"))
-		cmd_abbrev = 'b';
+		r = 'b';
 	else if(!strcmp(cmd, "restore"))
-		cmd_abbrev = 'r';
+		r = 'r';
 	else if(!strcmp(cmd, "delete"))
-		cmd_abbrev = 'd';
+		r = 'd';
 	else if(!strcmp(cmd, "gc"))
-		cmd_abbrev = 'g';
+		r = 'g';
 
-	return cmd_abbrev;
+	return r;
 }
 
-int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
+int validate_cmd(int argc, const char* cmd){
 	int r = 0;
 
 	if(argc == 1){
@@ -141,30 +144,26 @@ int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
 	else if(cmd_abbrev == 'g' && argc > 2){
 		fputs("Unexpected argument after 'gc'.\n", stderr);
 	}
-	else /* cmd is valid */
+	else /* cmd_abbrev is valid */
 		r = 1;
 
 	return r;
 }
 
-void send_cmd(char backup_path[], char cmd_abbrev, char* arg_path, char* resolved_path){
+void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 	DIR* dir;
-	int fifo_fd;
 	Comando cmd;
 
 	dir = opendir(resolved_path);
 	if(errno == ENOTDIR){ /* user entered a file */
 		switch(fork()){
 			case 0: /* I'm the child */
-				fifo_fd = open(backup_path, O_WRONLY);
-				if(fifo_fd == -1)
-					PERROR_AND_EXIT("open")
-				
 				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
 				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
 					PERROR_AND_EXIT("write");
+				
 				close(fifo_fd);
-				last_cmd = cmd_abbrev;
+				free(cmd);
 				last_file = arg_path;
 				pause();
 				_exit(1);
