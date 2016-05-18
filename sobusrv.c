@@ -43,7 +43,7 @@ void setupComando(int fifo){
 	if(cmd == NULL)
 		printf("Erro de memoria. O servidor deve ser reiniciado para assegurar maxima performance\n");
 	
-	if((r = read(fifo, cmd, tamanhoComando())) != tamanhoComando()){
+	if((r = read(fifo, cmd, tamanhoComando())) != tamanhoComando() && r){
 		printf("Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
 		kill(-getppid(), SIGKILL);
 	}
