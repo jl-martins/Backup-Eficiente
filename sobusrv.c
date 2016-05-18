@@ -101,6 +101,9 @@ int backup(char * file){
 	
 	if(access(path_sha1_data, F_OK) != -1){ // se o ficheiro existe 
 		// regista o link se o nome nao estivera ser usado 					
+			parse_path(file);
+			strcat(path_link_metadata, file);
+			symlink(path_sha1_data, path_link_metadata); 
 	}else{
 		// regista o link e faz o zip 
 		if(!fork()){
