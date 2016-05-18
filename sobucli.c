@@ -48,15 +48,13 @@ int main(int argc, char* argv[]){
 
 	for(i = 2; i < argc; ++i){
 		resolved_path = realpath(argv[i], NULL);
-		if(resolved_path == NULL)
-			perror("realpath");
-		else if(strlen(resolved_path) <= MAX_PATH)
+		if(resolved_path == NULL || strlen(resolved_path) <= MAX_PATH)
 			send_cmd(fifo_fd, argv[i], resolved_path);
 
 		free(resolved_path);
 	}
 	while(wait(NULL) && errno != ECHILD)
-		puts("esperando");
+		;
 
 	close(fifo_fd);
 	_exit(0); /* we only reach this point if no errors occurred */
@@ -68,7 +66,7 @@ char get_cmd_abbrev(int argc, char* argv[]){
 	if(argc == 1)
 		fputs("Numero invalido de argumentos. Utilizacao: sobucli cmd [FILE]...\n", stderr);
 	else if(!strcmp("gc", argv[1]))
-		(argc == 2) ? r = 'g' : fputs("'gc' nao recebe argumentos.\n", stderr);
+		(argc == 2) ? r = 'g' : fputs("'gc' nao recebe quaisquer argumentos.\n", stderr);
 	else{
 		if(!strcmp("backup", argv[1]))
 			r = 'b';
@@ -77,23 +75,23 @@ char get_cmd_abbrev(int argc, char* argv[]){
 		else if(!strcmp("delete", argv[1]))
 			r = 'd';
 		else{
-			fputs("Option not found.\nValid options: backup; restore; delete; gc.\n", stderr);
+			fputs("Opcao invalida.\nOpcoes validas: backup; restore; delete; gc.\n", stderr);
 			r = '\0';
 		}
 		
-		if(r != '\0' && argc < 3){ /* o comando existe mas precisa de argumentos e nao tem */
-			fprintf(stderr, "Option '%s' expects at least one more argument.\n", argv[1]);
+		if(r != '\0' && argc < 3){ /* o comando existe mas precisa de argumentos */
+			fprintf(stderr, "O comando '%s' precisa de pelo menos um argumento.\n", argv[1]);
 			r = '\0';
 		}
 	}
-	return r; /* so chegamos aqui se o comando for valido */
+	return r;
 }
 
-void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
+void sighandler(int sig){
 	switch(sig){ 
 		case SIGUSR1: /* operacao bem sucedida */
 			if(cmd_abbrev == 'b')
-				printf("%s: copied.\n", last_file);
+				printf("%s: copiado.\n", last_file);
 			else if(cmd_abbrev == 'r')
 				printf("%s: restored\n", last_file);
 			else if(cmd_abbrev == 'd')
@@ -131,8 +129,12 @@ void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 
 	dir = opendir(resolved_path);
 	if(errno == ENOTDIR){ /* o argumento e um ficheiro */
+		if(cmd_abbrev == 'b' && resolved_path == NULL){
+			perror(NULL);
+			return;
+		}
 		switch(fork()){
-			case 0: /* filho */
+			case 0: /* processo filho */
 				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
 				if(write(fifo_fd, cmd, tamanhoComando()) != tamanhoComando())
 					PERROR_AND_EXIT("write");
@@ -148,7 +150,7 @@ void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 		}
 	}
 	else if(dir != NULL){
-		/* resolved_path is a directory. Choose what to do! */
+		/* resolve_path e uma diretoria. Escolher o que fazer! */
 	}
 	else
 		perror("opendir");
