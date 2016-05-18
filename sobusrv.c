@@ -39,22 +39,20 @@ int execComando(Comando cmd){
 
 void setupComando(int fifo){
 	int r;
-	ssize_t bytesLidos;
 	Comando cmd = aloca_comando(); /* verificar se da null*/ 
 	if(cmd == NULL)
 		printf("Erro de memoria. O servidor deve ser reiniciado para assegurar maxima performance\n");
 	
-	while((bytesLidos = read(fifo, cmd, tamanhoComando())) == 0)
-		/* sleep */	
-	if(bytesLidos != tamanhoComando()){
+	if((r = read(fifo, cmd, tamanhoComando())) != tamanhoComando()){
 		printf("Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
-		kill(-getppid(), SIGQUIT);
+		kill(-getppid(), SIGKILL);
 	}
 	r = execComando(cmd);
 	if(r == 0)
 		kill(get_pid_comando(cmd), SIGUSR1);
 	else 
 		kill(get_pid_comando(cmd), SIGUSR2);
+	close(fifo);
 }
 
 int main(){
@@ -77,7 +75,7 @@ int main(){
 			_exit(0);
 		}
 	}
-		
+			
 	while(wait(NULL)){
 		if(!fork()){
 			setupComando(fifo);
