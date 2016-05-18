@@ -1,5 +1,7 @@
 cd $HOME
 mkdir -p .Backup
 cd .Backup
-mkfifo fifo -m 0666
-
+if [ ! -f "fifo" ]; then
+	mkfifo fifo -m 0666
+fi
+sudo mv sobucli sobusrv /usr/bin

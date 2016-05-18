@@ -6,11 +6,7 @@ all: sobucli sobusrv
 .PHONY: all install clean
 
 install: all
-	cd $(HOME)
-	mkdir -p .Backup
-	cd .Backup
-	mkfifo fifo -m 0666
-	sudo mv sobucli sobusrv /usr/bin
+	bash install.sh
 
 debug: CFLAGS = -Wall -Wextra -g
 debug: all

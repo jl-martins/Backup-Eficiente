@@ -161,10 +161,11 @@ void send_cmd(int fifo_fd, char cmd_abbrev, char* arg_path, char* resolved_path)
 				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
 				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
 					PERROR_AND_EXIT("write");
+				close(fifo_fd);
 				last_cmd = cmd_abbrev;
 				last_file = arg_path;
 				pause();
-				_exit(0);
+				_exit(1);
 			case -1:
 				perror("fork");
 				_exit(1);
