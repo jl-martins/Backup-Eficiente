@@ -30,7 +30,7 @@ void sighandler(int sig);
 
 int main(int argc, char* argv[]){
 	int i, fifo_fd, err_fd;
-	char backup_path[PATH_MAX];
+	char backup_path[MAX_PATH];
 	char cmd_abbrev, *resolved_path;
 
 	cmd_abbrev = get_cmd_abbrev(argv[1]);
