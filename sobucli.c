@@ -1,12 +1,15 @@
+#include "comando.h"
+#include <dirent.h>
+#include <errno.h> /* inclui ENOTDIR e outros códigos de erro */
+#include <fcntl.h>
+#include <limits.h> /* PATH_MAX e FILENAME_MAX */
+#include <signal.h>
+#include <stdio.h> /* perror() */
+#include <stdlib.h>
+#include <string.h> /* strcpy(), strcat() e strlen() */
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#include <limits.h> /* PATH_MAX e FILENAME_MAX */
-#include <stdio.h> /* perror() */
-#include <stdlib.h>
-#include <string.h> /* memcpy() e strlen() */
-#include "comando.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -22,7 +25,7 @@ static char* last_file;
 
 char get_cmd_abbrev(const char* cmd);
 int validate_cmd(int argc, const char* cmd, char cmd_abbrev);
-void send_cmd(int fifo_fd, int argc, char* argv[], char cmd_abbrev);
+void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
@@ -31,7 +34,7 @@ int main(int argc, char* argv[]){
 	char cmd_abbrev, *resolved_path;
 
 	cmd_abbrev = get_cmd_abbrev(argv[1]);
-	if(validate_cmd(argc, cmd, cmd_abbrev) == 0)
+	if(validate_cmd(argc, argv[1], cmd_abbrev) == 0)
 		_exit(1);
 
 	strcpy(backup_path, getenv("HOME"));
@@ -50,7 +53,7 @@ int main(int argc, char* argv[]){
 		close(err_fd);
 
 	fifo_fd = open("fifo", O_WRONLY);
-	if(fifo_fd == -1);
+	if(fifo_fd == -1)
 		PERROR_AND_EXIT("open")
 
 	if(signal(SIGUSR1, sighandler) == SIG_ERR || signal(SIGUSR2, sighandler) == SIG_ERR)
@@ -136,12 +139,11 @@ int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
 	return r;
 }
 
-void send_cmd(int fifo_fd, char cmd_abbrev, const char* resolved_path){
+void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path){
 	pid_t p;
 	DIR* dir;
 	Comando cmd;
 
-	/* Não escrever '\0'!!! nas Strings */
 	dir = opendir(resolved_path);
 	if(errno == ENOTDIR){ /* user entered a file */
 		p = fork();
@@ -156,13 +158,13 @@ void send_cmd(int fifo_fd, char cmd_abbrev, const char* resolved_path){
 				perror("fork");
 				_exit(1);
 			default: /* I'm the parent */
-				if(strlen(resolved_path) >= 2048)
-					resolved_path[2048] = '\0'; /* truncate resolved_path to 2048 bytes */
+				if(strlen(resolved_path) >= MAX_PATH)
+					resolved_path[MAX_PATH] = '\0'; /* truncate resolved_path to MAX_PATH bytes */
 				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
-				free(resolved_path);
-				if(write(fifo_fd, cmd, sizeof(struct comando)) == -1)
+				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
 					kill(p, SIGINT);
 				break;
+		}
 	}
 	else if(dir != NULL){
 		/* resolved_path is a directory. Choose what to do! */

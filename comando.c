@@ -9,7 +9,7 @@ struct comando{
 	pid_t pid; /* pid do processo que enviou o comando */
 	char filepath[MAX_PATH];
 	char codigoComando;
-}
+};
 
 Comando aloca_comando(){
 	return malloc(sizeof(struct comando));
