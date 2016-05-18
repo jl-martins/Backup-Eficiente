@@ -26,7 +26,7 @@ static char* last_file;
 
 char get_cmd_abbrev(const char* cmd);
 int validate_cmd(int argc, const char* cmd, char cmd_abbrev);
-void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path);
+void send_cmd(int fifo_fd, char cmd_abbrev, char* arg_path, char* resolved_path);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]){
 		if(resolved_path == NULL)
 			perror("realpath");
 		else if(strlen(resolved_path) <= MAX_PATH){
-			send_cmd(fifo_fd, cmd_abbrev, resolved_path);
+			send_cmd(fifo_fd, cmd_abbrev, argv[i], resolved_path);
 			free(resolved_path);
 		}
 	}
@@ -89,6 +89,7 @@ void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 				printf("%s: deleted\n", last_file);
 			else /* last_cmd == 'g' */
 				puts("gc: Success");
+			_exit(0);
 			break;
 		case SIGUSR2: /* failed operation */
 			if(last_cmd == 'b'){
@@ -107,6 +108,7 @@ void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 				puts("[ERROR] gc failed");
 				fputs("[ERROR] gc failed", stderr);
 			}
+			_exit(1);
 			break;
 	}
 }
@@ -148,7 +150,7 @@ int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
 	return r;
 }
 
-void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path){
+void send_cmd(int fifo_fd, char cmd_abbrev, char* arg_path, char* resolved_path){
 	DIR* dir;
 	Comando cmd;
 
@@ -160,7 +162,7 @@ void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path){
 				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
 					PERROR_AND_EXIT("write");
 				last_cmd = cmd_abbrev;
-				last_file = resolved_path;
+				last_file = arg_path;
 				pause();
 				_exit(0);
 			case -1:
