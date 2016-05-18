@@ -84,11 +84,11 @@ void setupComando(int fifo){
 		kill(-getppid(), SIGKILL);
 	}
 	r = execComando(cmd);
-	free(cmd);	
 	if(r == 0)
 		kill(get_pid_comando(cmd), SIGUSR1);
 	else 
 		kill(get_pid_comando(cmd), SIGUSR2);
+	free(cmd);	
 	close(fifo);
 }
 
@@ -101,7 +101,7 @@ int main(){
 	/* termina o programa mas deixa os processos em execução */
 	if(fork())
 		_exit(0);	
-	if(fork()){
+	if(!fork()){
 		/* abre o pipe para escrita -> faz com que os outros processos bloqueiem quando nao ha nada para ler do buffer */
 		fifo = open(backup_path,  O_WRONLY); 
 		pause();
