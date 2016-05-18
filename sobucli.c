@@ -29,7 +29,8 @@ void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
-	int i, fifo_fd, err_fd;
+	int i, fifo_fd/*, err_fd*/;
+	/*char err_path[MAX_PATH];*/
 	char backup_path[MAX_PATH];
 	char cmd_abbrev, *resolved_path;
 
@@ -39,18 +40,19 @@ int main(int argc, char* argv[]){
 
 	strcpy(backup_path, getenv("HOME"));
 	strcat(backup_path, "/.Backup");
-	if(chdir(backup_path) == -1)
-		PERROR_AND_EXIT("chdir")
+	/*strcpy(err_path, backup_path);
+	strcat(err_path, "/err_log.txt");*/
+	strcat(backup_path, "/fifo");
 
-	err_fd = open("err_log.txt", O_WRONLY | O_APPEND);
+	/*err_fd = open("err_log.txt", O_WRONLY | O_APPEND);
 	if(err_fd == -1)
 		PERROR_AND_EXIT("open")
 	
-	/* redirect stderr to err_fd */
+
 	if(dup2(err_fd, 2) == -1)
 		PERROR_AND_EXIT("dup2")
 	else
-		close(err_fd);
+		close(err_fd);*/
 
 	fifo_fd = open("fifo", O_WRONLY);
 	if(fifo_fd == -1)
