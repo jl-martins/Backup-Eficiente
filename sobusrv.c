@@ -3,7 +3,7 @@
 #include "headers.h"
 #include "backup.h"
 #include "comando.h"
-
+#define TAMANHO_SHA1SUM 40 
 /* Todo:
  * - script de instalação
  * - struct de comando
@@ -13,14 +13,44 @@
  * - backup
  * - delete(em paralelo)
  * - gc em paralelo 
- * - ficheiro de log
+ * - ficheiro de log (escrever no servidor)
+ * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto 
 */ 
 
 /* ver como me certificar que os ficheiros sao escritos por ordem correta (tenho que garantir que as linhas sao escritas pela ordem certa no ficheiro, apesar de poderem ser escritas por varios processos */
 
+/* Devolve a string resultante da aplicação do comando sha1sum ao ficheiro 'filename' */
+/* verificar sempre resultados do fork e outras syscalls */
+/* deve-se verificar se o ficheiro existe antes da invocacao */
+char * sha1sum(char * filename){
+	int pipefd[2];
+	pipe(pipefd);
+	if(fork()){
+		char *  sha1 = malloc(TAMANHO_SHA1SUM + 1);
+		close(pipefd[1]); /* fecha a ponta de escrita*/
+		wait(NULL);
+		read(pipefd[0], sha1, TAMANHO_SHA1SUM);
+		close(pipefd[0]);
+		sha1[TAMANHO_SHA1SUM] = '\0';	
+		return sha1;
+	}else{
+		close(pipefd[0]);/* fecha a ponta de leitura */	
+		if(dup2(pipefd[1], 1) != -1)
+			close(pipefd[1]);
+		else _exit(-1); /* melhorar condicoes */	
+		execlp("sha1sum", "sha1sum", filename, NULL);	
+		exit(-1);
+	}	
+}
+
 int backup(){
+	
 	return 0;
 }	
+
+int restore(){
+	return 0;
+}
 
 int execComando(Comando cmd){
 	char codigo_comando = get_codigoComando(cmd);
@@ -40,8 +70,9 @@ int execComando(Comando cmd){
 void setupComando(int fifo){
 	int r;
 	Comando cmd = aloca_comando(); /* verificar se da null*/ 
-	if(cmd == NULL)
-		printf("Erro de memoria. O servidor deve ser reiniciado para assegurar maxima performance\n");
+	if(cmd == NULL){
+		_exit(-1);
+	}
 	r = read(fifo, cmd, tamanhoComando());
 	if(r == 0){
 		free(cmd);
@@ -71,6 +102,7 @@ int main(){
 	if(fork())
 		_exit(0);	
 	if(fork()){
+		/* abre o pipe para escrita -> faz com que os outros processos bloqueiem quando nao ha nada para ler do buffer */
 		fifo = open(backup_path,  O_WRONLY); 
 		pause();
 		_exit(-1);
