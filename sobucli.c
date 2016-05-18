@@ -22,7 +22,7 @@ extern int errno;
 static char cmd_abbrev = '\0';
 static char* last_file;
 
-int validate_cmd(int argc, char* argv[]);
+char get_cmd_abbrev(int argc, char* argv[]);
 void send_cmd(int fifo_fd, char* arg_path, char* resolved_path);
 void sighandler(int sig);
 
@@ -31,7 +31,8 @@ int main(int argc, char* argv[]){
 	char *resolved_path;
 	char backup_path[MAX_PATH];
 
-	if(validate_cmd(argc, argv) == -1)
+	cmd_abbrev = get_cmd_abbrev(argc, argv);
+	if(cmd_abbrev == '\0')
 		_exit(1);
 
 	strcpy(backup_path, getenv("HOME"));
@@ -61,36 +62,28 @@ int main(int argc, char* argv[]){
 	_exit(0); /* we only reach this point if no errors occurred */
 }
 
-int validate_cmd(int argc, char* argv[]){
-	int r = 0;
+char get_cmd_abbrev(int argc, char* argv[]){
+	char r = '\0';
 
-	if(argc == 1){
-		fputs("Invalid number of arguments. Usage: sobucli cmd [FILE]...\n", stderr);
-		r = -1;
-	}
-	else if(!strcmp("gc", argv[1])){
-		if(argc == 2)
-			cmd_abbrev = 'g';
-		else{
-			fputs("Unexpected argument after 'gc'.\n", stderr);
-			r = -1;
-		}
-	}
+	if(argc == 1)
+		fputs("Numero invalido de argumentos. Utilizacao: sobucli cmd [FILE]...\n", stderr);
+	else if(!strcmp("gc", argv[1]))
+		(argc == 2) ? r = 'g' : fputs("'gc' nao recebe argumentos.\n", stderr);
 	else{
 		if(!strcmp("backup", argv[1]))
-			cmd_abbrev = 'b';
+			r = 'b';
 		else if(!strcmp("restore", argv[1]))
-			cmd_abbrev = 'r';
+			r = 'r';
 		else if(!strcmp("delete", argv[1]))
-			cmd_abbrev = 'd';
+			r = 'd';
 		else{
 			fputs("Option not found.\nValid options: backup; restore; delete; gc.\n", stderr);
-			r = -1;
+			r = '\0';
 		}
 		
-		if(r == 0 && argc < 3){
+		if(r != '\0' && argc < 3){ /* o comando existe mas precisa de argumentos e nao tem */
 			fprintf(stderr, "Option '%s' expects at least one more argument.\n", argv[1]);
-			r = -1;
+			r = '\0';
 		}
 	}
 	return r; /* so chegamos aqui se o comando for valido */
