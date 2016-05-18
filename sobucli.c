@@ -20,7 +20,7 @@ extern int errno;
 
 /* variables used in sighandler() for printing success/error messages */
 static char cmd_abbrev = '\0';
-static char* last_file;
+static char* last_file = NULL;
 
 char get_cmd_abbrev(int argc, char* argv[]);
 void send_cmd(int fifo_fd, char* arg_path, char* resolved_path);
