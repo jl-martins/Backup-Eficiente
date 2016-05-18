@@ -8,8 +8,9 @@
 #include <stdlib.h>
 #include <string.h> /* strcpy(), strcat() e strlen() */
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -65,11 +66,15 @@ int main(int argc, char* argv[]){
 		resolved_path = realpath(argv[i], NULL);
 		if(resolved_path == NULL)
 			perror("realpath");
-		else{
+		else if(strlen(resolved_path) <= MAX_PATH){
 			send_cmd(fifo_fd, cmd_abbrev, resolved_path);
 			free(resolved_path);
 		}
 	}
+	while(wait(NULL) && errno != ECHILD)
+		;
+
+	close(fifo_fd);
 	_exit(0); /* we only reach this point if no errors occurred */
 }
 
@@ -84,6 +89,7 @@ void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 				printf("%s: deleted\n", last_file);
 			else /* last_cmd == 'g' */
 				puts("gc: Success");
+			break;
 		case SIGUSR2: /* failed operation */
 			if(last_cmd == 'b'){
 				printf("[ERROR] Failure copying '%s'\n", last_file);
@@ -101,6 +107,7 @@ void sighandler(int sig){ /* SIMPLIFICAR ESTA FUNÇÃO */
 				puts("[ERROR] gc failed");
 				fputs("[ERROR] gc failed", stderr);
 			}
+			break;
 	}
 }
 
@@ -142,30 +149,23 @@ int validate_cmd(int argc, const char* cmd, char cmd_abbrev){
 }
 
 void send_cmd(int fifo_fd, char cmd_abbrev, char* resolved_path){
-	pid_t p;
 	DIR* dir;
 	Comando cmd;
 
 	dir = opendir(resolved_path);
 	if(errno == ENOTDIR){ /* user entered a file */
-		p = fork();
-		switch(p){
+		switch(fork()){
 			case 0: /* I'm the child */
+				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
+				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
+					PERROR_AND_EXIT("write");
 				last_cmd = cmd_abbrev;
 				last_file = resolved_path;
 				pause();
 				_exit(0);
-				break;
 			case -1:
 				perror("fork");
 				_exit(1);
-			default: /* I'm the parent */
-				if(strlen(resolved_path) >= MAX_PATH)
-					resolved_path[MAX_PATH] = '\0'; /* truncate resolved_path to MAX_PATH bytes */
-				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
-				if(write(fifo_fd, cmd, tamanhoComando()) == -1)
-					kill(p, SIGINT);
-				break;
 		}
 	}
 	else if(dir != NULL){
