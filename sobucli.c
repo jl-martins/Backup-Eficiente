@@ -93,11 +93,11 @@ void sighandler(int sig){
 			if(cmd_abbrev == 'b')
 				printf("%s: copiado.\n", last_file);
 			else if(cmd_abbrev == 'r')
-				printf("%s: restored\n", last_file);
+				printf("%s: recuperado\n", last_file);
 			else if(cmd_abbrev == 'd')
-				printf("%s: deleted\n", last_file);
+				printf("%s: apagado\n", last_file);
 			else if(cmd_abbrev == 'g')
-				puts("gc: Success");
+				puts("gc: OK");
 			else{
 				puts("Nao devia estar aqui!");
 				_exit(1);
@@ -121,27 +121,29 @@ void sighandler(int sig){
 	}
 }
 
-
-
 void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 	DIR* dir;
 	Comando cmd;
 
-	dir = opendir(resolved_path);
-	if(errno == ENOTDIR){ /* o argumento e um ficheiro */
-		if(cmd_abbrev == 'b' && resolved_path == NULL){
-			perror(NULL);
+	if(cmd_abbrev == 'b'){
+		if(resolved_path == NULL){ /* nao e possivel fazer backup sem um caminho absoluto */
+			perror(arg_path);
 			return;
 		}
+		else
+			dir = opendir(resolved_path);
+	}
+
+	if(cmd_abbrev != 'b' || errno == ENOTDIR){
 		switch(fork()){
 			case 0: /* processo filho */
+				last_file = arg_path;
 				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
 				if(write(fifo_fd, cmd, tamanhoComando()) != tamanhoComando())
-					PERROR_AND_EXIT("write");
-	
+					PERROR_AND_EXIT("write")
+				
 				close(fifo_fd);
 				free(cmd);
-				last_file = arg_path;
 				pause();
 				_exit(1);
 			case -1:
@@ -150,6 +152,7 @@ void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 		}
 	}
 	else if(dir != NULL){
+		puts("sou uma diretoria");
 		/* resolve_path e uma diretoria. Escolher o que fazer! */
 	}
 	else
