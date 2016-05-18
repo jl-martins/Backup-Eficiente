@@ -42,6 +42,6 @@ char get_codigoComando(Comando cmd){
 	return cmd->codigoComando;
 }
 
-size_t tamanhoComando(){
+ssize_t tamanhoComando(){
 	return sizeof(struct comando);
 }

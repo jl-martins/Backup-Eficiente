@@ -1,13 +1,14 @@
 #include <stdio.h>
+#include <string.h>
 #include "headers.h"
 #include "backup.h"
 #include "comando.h"
 
 /* Todo:
- * - Testar getLine e faze-la atomica
+ * - script de instalação
  * - struct de comando
  * - ver o que acontece quando temos dois processos sobre o mesmo ficheiro
- * - por a enviar ficeiros pelos pipes em vez de o fazer noservidor - nesse caso basta fazer 2 fifos adicionais, um para restore e outro para backup - ver como o fazer para varios clientes
+ * - por a enviar ficeiros pelos pipes em vez de o fazer noservidor - nesse caso basta fazer 2 fifos adicionais, um para restore e outro para backup - ver como o fazer para varios clientes, comunicar dados através de uma estrutura de dados "dados"
  * - restore
  * - backup
  * - delete(em paralelo)
@@ -20,7 +21,7 @@ int backup(){
 
 int execComando(Comando cmd){
 	char codigo_comando = get_codigoComando(cmd);
-	int ret;
+	int ret = -1;
 	char * file;
 	switch(codigo_comando){
 		case 'b': file = get_filepath(cmd);
@@ -33,50 +34,48 @@ int execComando(Comando cmd){
 	return ret;
 }
 
+void setupComando(int fifo){
+	int r;
+	Comando cmd = aloca_comando(); /* verificar se da null*/ 
+	if(cmd == NULL)
+		printf("Erro de memoria. O servidor deve ser reiniciado para assegurar maxima performance\n");
+		
+	if(read(fifo, cmd, tamanhoComando()) != tamanhoComando()){
+		printf("Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
+		kill(-getppid(), SIGQUIT);
+	}
+	r = execComando(cmd);
+	if(r == 0)
+		kill(get_pid_comando(cmd), SIGUSR1);
+	else 
+		kill(get_pid_comando(cmd), SIGUSR2);
+}
+
 int main(){
-	int i;
-	int fifo = open("~/.Backup/comandos",  O_RDONLY); /* subsitutir por HOME, criar fifo se nao houver */
+	int i, fifo;
+	char backup_path[MAX_PATH];
+	strcpy(backup_path, getenv("HOME"));
+	strcat(backup_path, "/.Backup/fifo");
+
+	fifo = open(backup_path,  O_RDONLY); /* subsitutir por HOME, criar fifo se nao houver */
 	if(fifo == -1)
 		_exit(-1);
 	/* fazer comando no cliente que indica que a transferencia de dados acabou para poder matar processo de sinais */
 
 	/* termina o programa mas deixa os processos em execução */
 	if(fork())
-		return 0;
+		_exit(0);
 	
 	for(i = 0; i < 5; i++){
 		if(!fork()){
-			int r;
-			Comando cmd = aloca_comando(); /* verificar se da null*/ 
-			if(cmd == NULL){
-				printf("Erro mem\n");
-				_exit(-2); /* necessario propagar exit para todos os processos */
-			}
-				
-			r = read(fifo, cmd, tamanhoComando());
-			if(r != tamanhoComando()){
-				printf("Erro de leitura do comando");
-				_exit(-3); /* necessario propagar exit para todos os processos */
-			}
-			r = execComando(cmd);
-			if(r == 0)
-				kill(get_pid_comando(cmd), SIGUSR1);
-			else 
-				kill(get_pid_comando(cmd), SIGUSR2);
+			setupComando(fifo);
 			break;
-			/* definir como proceder quando le uma linha (onde é que a deve escrever, gerir o numero de processos abertos, etc) */
-		/*fazer com um ciclo com waits */
 		}
 	}
 	
 	while(wait(&i)){
-		if(!fork()){
-			Comando cmd = aloca_comando(); /* verificar se da null*/ 
-			/* readline(fd, cmd, sizeof(COMANDO)); deve ser um read e nao um readline*/
-			read(fifo, cmd, tamanhoComando());
-			execComando(cmd);
-			break;
-		}
+		if(!fork())
+			setupComando(fifo);
 	}	
 	_exit(0);
 }

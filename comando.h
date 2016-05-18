@@ -8,5 +8,5 @@
 	pid_t get_pid_comando(Comando cmd);
 	char * get_filepath(Comando cmd);
 	char get_codigoComando(Comando cmd);
-	size_t tamanhoComando();
+	ssize_t tamanhoComando();
 #endif
