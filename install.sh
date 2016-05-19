@@ -1,7 +1,6 @@
-cd $HOME
-mkdir -p .Backup
-cd .Backup
-if [ ! -f "fifo" ]; then
-	mkfifo fifo -m 0666
+mkdir -p $HOME/.Backup/data
+mkdir -p $HOME/.Backup/metadata
+if [ ! -f "$HOME fifo" ]; then
+	mkfifo $HOME/.Backup/fifo -m 0666
 fi
-sudo mv sobucli sobusrv /usr/bin
+sudo mv -t /usr/bin sobucli sobusrv 

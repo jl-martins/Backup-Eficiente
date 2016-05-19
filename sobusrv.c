@@ -13,13 +13,10 @@
  * relatorio - por no inicio que restriçoes é que consideramos: a frestore tem de serpassada com acminho absoluto para permitir que se possam restaurar 2 pastas iguais e quando se executam 2 comandos sobre o mesmo ficheiro em simultaneo, um deles pode falhar. Se nao falhar, a ordem de execucao dos comandos é indefinida.
  * - struct dados e enviar os dados a partir do cliente (fazemos o zip no servidor e evitamos problemas de permissoes. nota: os dados vao ser guardados na home do utilizador que criou a pasta mesmo que o utilizador do cliente seja diferente? (indicar a resposta no relatorio nas consideraçoes)
    - backup recursivo das pastas no cliente
- * - script de instalação
 ?? se puser um fork à volta do zip da versao com pastas no servidor, ja funciona(prolly not, e com a versao nova do zip?)?~
  * - struct de comando
  * - ver o que acontece quando temos dois processos sobre o mesmo ficheiro (podem ser sessoes diferentes - impedir a todo o custo 
  * - por a enviar ficeiros pelos pipes em vez de o fazer noservidor - nesse caso basta fazer 2 fifos adicionais, um para restore e outro para backup - ver como o fazer para varios clientes, comunicar dados através de uma estrutura de dados "dados"
- * - restore
- * - backup
  * - delete(em paralelo)
  * - gc em paralelo 
  * - ficheiro de log (escrever no servidor)

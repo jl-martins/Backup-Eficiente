@@ -8,6 +8,9 @@ all: sobucli sobusrv
 install: all
 	bash install.sh
 
+unninstall:
+	bash unninstall.sh
+
 debug: CFLAGS = -Wall -Wextra -g
 debug: all
 
