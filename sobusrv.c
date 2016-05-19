@@ -24,7 +24,9 @@
  * - gc em paralelo 
  * - ficheiro de log (escrever no servidor)
  * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto 
+- fazer testes(unitarios) para o zipFile e outras funçoes
  * - por frestore no cliente
+ * armar sinais para quando ficheiros nao existem 
 */ 
 
 /* ver como me certificar que os ficheiros sao escritos por ordem correta (tenho que garantir que as linhas sao escritas pela ordem certa no ficheiro, apesar de poderem ser escritas por varios processos */
@@ -141,12 +143,15 @@ int backup(char * file){
 
 /* Neste caso, filename já não é o caminho absoluto mas sim apenas o nome*/
 int restore(char * filename){
+	int fd, r;
 	char path_link_metadata[MAX_PATH];
+	char caminho_backup[MAX_PATH];
 	char ficheiroPath[MAX_PATH]; /* caminho do ficheiro que guarda o path original do ficheiro */
+	char caminhoFicheiroARestaurar[MAX_PATH];
 
 	/* local na metadata */
 	strcpy(path_link_metadata, metadata_path);	
-	strcat(path_link_metadata, nomeFicheiro);
+	strcat(path_link_metadata, filename);
 
 	/* se nao foi feito um backup do ficheiro que se pretende restaurar, nao se pode restaurar o ficheiro */
 	if(access(path_link_metadata, F_OK) == -1)
@@ -155,8 +160,16 @@ int restore(char * filename){
 	/* ficheiro que contem caminho original do ficheiro a guardar */	
 	strcpy(ficheiroPath, metadata_path);	
 	strcat(ficheiroPath, ".");
-	strcat(ficheiroPath, nomeFicheiro);
-
+	strcat(ficheiroPath, filename);
+	
+	fd = open(ficheiroPath, O_RDONLY);
+	if(fd == -1)
+		return -1;
+	r = read(fd, caminhoFicheiroARestaurar, MAX_PATH);
+	caminhoFicheiroARestaurar[r] = '\0';
+	r = readlink(path_link_metadata, caminho_backup, MAX_PATH);
+	caminho_backup[r] = 0;
+	zipFile(caminho_backup, caminhoFicheiroARestaurar, UNZIP);
 	
 	
 	return 0;
