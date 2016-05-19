@@ -78,13 +78,6 @@ void zipFile(char * filepath, char * newFile){
 	}	
 }
 
-void parse_path(char * path){
-	for( ; path[0]; path++){
-		if(path[0] == '/')
-			path[0] = SEPARADOR;
-	}
-}
-
 int backup(char * file){
 	char path_sha1_data[MAX_PATH];
 	char path_link_metadata[MAX_PATH];
