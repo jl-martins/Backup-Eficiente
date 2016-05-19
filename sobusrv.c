@@ -5,8 +5,14 @@
 #include "comando.h"
 #define TAMANHO_SHA1SUM 40 
 #define SIZE_READS 4096
-#define SEPARADOR 31
+/* Opcoes da ZipFile */
+#define ZIP 0
+#define UNZIP 1
+
 /* Todo:
+ * relatorio - por no inicio que restriçoes é que consideramos: a frestore tem de serpassada com acminho absoluto para permitir que se possam restaurar 2 pastas iguais e quando se executam 2 comandos sobre o mesmo ficheiro em simultaneo, um deles pode falhar. Se nao falhar, a ordem de execucao dos comandos é indefinida.
+ * - struct dados e enviar os dados a partir do cliente (fazemos o zip no servidor e evitamos problemas de permissoes. nota: os dados vao ser guardados na home do utilizador que criou a pasta mesmo que o utilizador do cliente seja diferente? (indicar a resposta no relatorio nas consideraçoes)
+   - backup recursivo das pastas no cliente
  * - script de instalação
 ?? se puser um fork à volta do zip da versao com pastas no servidor, ja funciona(prolly not, e com a versao nova do zip?)?~
  * - struct de comando
@@ -18,6 +24,7 @@
  * - gc em paralelo 
  * - ficheiro de log (escrever no servidor)
  * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto 
+ * - por frestore no cliente
 */ 
 
 /* ver como me certificar que os ficheiros sao escritos por ordem correta (tenho que garantir que as linhas sao escritas pela ordem certa no ficheiro, apesar de poderem ser escritas por varios processos */
@@ -53,7 +60,7 @@ char * sha1sum(char * filename){
 	}	
 }
 
-void zipFile(char * filepath, char * newFile){
+void zipFile(char * filepath, char * newFile, int opcao){
 	int pipefd[2];
 	pipe(pipefd);
 	if(fork()){
@@ -73,7 +80,10 @@ void zipFile(char * filepath, char * newFile){
 		if(dup2(pipefd[1], 1) != -1)
 			close(pipefd[1]);
 		else _exit(-1); /* melhorar condicoes */	
-		execlp("gzip", "gzip", "-c", filepath, NULL);	
+		if(opcao == ZIP)
+			execlp("gzip", "gzip", "-c", filepath, NULL);	
+		else if(opcao == UNZIP)
+			execlp("gzip", "gzip", "-cd", filepath, NULL);	
 		exit(-1);
 	}	
 }
@@ -111,7 +121,7 @@ int backup(char * file){
 	strcat(ficheiroPath, nomeFicheiro);
 	
 	/* se ja houver um ficheiro diferente com o mesmo nome, nao podemos fazer backup sem ambiguidade. nao guardamos o ultimo ficheiro */
-	if(symlink(path_sha1_data, path_link_metadata) == -1)
+	if(symlink(path_sha1_data, path_link_metadata) == -1) /* substituir por if(access(path_link_metadata, F_OK) != -1) ??? */
 		return -1; 
 	/* fazer free(sha1) se return -1 */
 	if((fd = open(ficheiroPath, O_CREAT | O_WRONLY, 0666)) == -1)
@@ -123,13 +133,32 @@ int backup(char * file){
 	close(fd);
 
 	if(access(path_sha1_data, F_OK) == -1) // se os dados nao estao guardados 
-		zipFile(file, path_sha1_data);	
+		zipFile(file, path_sha1_data, ZIP);	
 		
 	free(sha1);
 	return 0;
 }	
 
-int restore(){
+/* Neste caso, filename já não é o caminho absoluto mas sim apenas o nome*/
+int restore(char * filename){
+	char path_link_metadata[MAX_PATH];
+	char ficheiroPath[MAX_PATH]; /* caminho do ficheiro que guarda o path original do ficheiro */
+
+	/* local na metadata */
+	strcpy(path_link_metadata, metadata_path);	
+	strcat(path_link_metadata, nomeFicheiro);
+
+	/* se nao foi feito um backup do ficheiro que se pretende restaurar, nao se pode restaurar o ficheiro */
+	if(access(path_link_metadata, F_OK) == -1)
+		return -1;
+	
+	/* ficheiro que contem caminho original do ficheiro a guardar */	
+	strcpy(ficheiroPath, metadata_path);	
+	strcat(ficheiroPath, ".");
+	strcat(ficheiroPath, nomeFicheiro);
+
+	
+	
 	return 0;
 }
 
@@ -142,7 +171,9 @@ int execComando(Comando cmd){
 		 	  ret = backup(file);
 			  free(file); 	
 			  break;
-		case 'r':
+		case 'r': file = get_filepath(cmd);
+		 	  ret = restore(file);
+			  free(file); 	
 			  break;
 	}
 	return ret;
