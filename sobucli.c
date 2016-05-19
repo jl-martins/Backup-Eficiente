@@ -16,19 +16,17 @@
 #define TOSTRING(x) STRINGIFY(x)
 #define PERROR_AND_EXIT(msg) {perror(__FILE__ ":" TOSTRING(__LINE__) ":" msg); _exit(1);}
 
-extern int errno;
-
 /* variables used in sighandler() for printing success/error messages */
 static char cmd_abbrev = '\0';
 static char* last_file = NULL;
 
 char get_cmd_abbrev(int argc, char* argv[]);
-void send_cmd(int fifo_fd, char* arg_path, char* resolved_path);
+void send_cmd(int fifo_fd, char* arg_path);
+void send_cmd_full_path(int fifo_fd, char* arg_path, char* full_path);
 void sighandler(int sig);
 
 int main(int argc, char* argv[]){
 	int i, fifo_fd;
-	char *resolved_path;
 	char backup_path[MAX_PATH];
 
 	cmd_abbrev = get_cmd_abbrev(argc, argv);
@@ -46,13 +44,24 @@ int main(int argc, char* argv[]){
 	if(signal(SIGUSR1, sighandler) == SIG_ERR || signal(SIGUSR2, sighandler) == SIG_ERR)
 		PERROR_AND_EXIT("signal")
 
-	for(i = 2; i < argc; ++i){
-		resolved_path = realpath(argv[i], NULL);
-		if(resolved_path == NULL || strlen(resolved_path) <= MAX_PATH)
-			send_cmd(fifo_fd, argv[i], resolved_path);
+	if(cmd_abbrev == 'b' || cmd_abbrev == 'f'){
+		char* full_path;
 
-		free(resolved_path);
+		for(i = 2; i < argc; ++i){
+			full_path = realpath(argv[i], NULL);
+			if(full_path == NULL)
+				perror(argv[i]);
+			else
+				send_cmd_full_path(fifo_fd, argv[i], full_path);
+			free(full_path);
+		}
 	}
+	else if(cmd_abbrev == 'g')
+		send_cmd(fifo_fd, ""); /* gc nao tem argumentos, daí a string vazia "" */
+	else /* restore ou delete */
+		for(i = 2; i < argc; ++i)
+			send_cmd(fifo_fd, argv[i]);
+
 	while(wait(NULL) && errno != ECHILD)
 		;
 
@@ -74,6 +83,8 @@ char get_cmd_abbrev(int argc, char* argv[]){
 			r = 'r';
 		else if(!strcmp("delete", argv[1]))
 			r = 'd';
+		else if(!strcmp("fbackup", argv[1]))
+			r = 'f';
 		else{
 			fputs("Opcao invalida.\nOpcoes validas: backup; restore; delete; gc.\n", stderr);
 			r = '\0';
@@ -92,7 +103,7 @@ void sighandler(int sig){
 		case SIGUSR1: /* operacao bem sucedida */
 			if(cmd_abbrev == 'b')
 				printf("%s: copiado.\n", last_file);
-			else if(cmd_abbrev == 'r')
+			else if(strchr("rf", cmd_abbrev))
 				printf("%s: recuperado\n", last_file);
 			else if(cmd_abbrev == 'd')
 				printf("%s: apagado\n", last_file);
@@ -106,13 +117,13 @@ void sighandler(int sig){
 			break;
 		case SIGUSR2: /* erro */
 			if(cmd_abbrev == 'b')
-				fprintf(stderr, "[ERROR] Failure copying '%s'\n", last_file);
-			else if(cmd_abbrev == 'r')
-				fprintf(stderr, "[ERROR] Failure restoring '%s'\n", last_file);
+				fprintf(stderr, "[ERROR] Falha a copiar '%s'\n", last_file);
+			else if(strchr("rf", cmd_abbrev))
+				fprintf(stderr, "[ERROR] Falha a recuperar '%s'\n", last_file);
 			else if(cmd_abbrev == 'd')
-				fprintf(stderr, "[ERROR] Failure deleting '%s'\n", last_file);
+				fprintf(stderr, "[ERROR] Falha a apagar '%s'\n", last_file);
 			else if(cmd_abbrev == 'g')
-				fputs("[ERROR] gc failed", stderr);
+				fputs("[ERROR] O comando 'gc' falhou", stderr);
 			else
 				fputs("[ERROR] Nao devia estar aqui.\n", stderr);
 
@@ -121,33 +132,24 @@ void sighandler(int sig){
 	}
 }
 
-void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
-	DIR* dir;
+void send_cmd_full_path(int fifo_fd, char* arg_path, char* full_path){
 	Comando cmd;
+	struct stat buf;
 
-	if(cmd_abbrev == 'b'){
-		if(resolved_path == NULL){ /* nao e possivel fazer backup sem um caminho absoluto */
-			perror(arg_path);
-			return;
-		}
-		else
-			dir = opendir(resolved_path);
+	if(stat(full_path, &buf) == -1){
+		perror("stat");
+		return;
 	}
 
-	if(cmd_abbrev != 'b' || errno == ENOTDIR){
+	if(S_ISREG(buf.st_mode)){ /* backup de um ficheiro */
 		switch(fork()){
-			case 0: /* processo filho */
+			case 0:
 				last_file = arg_path;
-				if(resolved_path)
-					cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
-				else
-					cmd = aloca_inicializa_comando(cmd_abbrev, arg_path);
-				
+				cmd = aloca_inicializa_comando(cmd_abbrev, full_path);
 				if(write(fifo_fd, cmd, tamanhoComando()) != tamanhoComando())
 					PERROR_AND_EXIT("write")
-				
+
 				close(fifo_fd);
-				free(cmd);
 				pause();
 				_exit(1);
 			case -1:
@@ -155,10 +157,44 @@ void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 				_exit(1);
 		}
 	}
-	else if(dir != NULL){
-		puts("sou uma diretoria");
-		/* resolve_path e uma diretoria. Escolher o que fazer! */
+	else if(S_ISDIR(buf.st_mode)){ /* backup de uma diretoria */
+		int len;
+		struct dirent* dp;
+		DIR* dir = opendir(full_path);
+		
+		if(dir == NULL){
+			perror("opendir");
+			return;
+		}
+
+		len = strlen(full_path);
+		full_path[len++] = '/';
+		while((dp = readdir(dir)) != NULL){
+			strcpy(&full_path[len], dp->d_name);
+			send_cmd_full_path(fifo_fd, full_path, full_path);
+		}
 	}
 	else
-		perror("opendir");
+		fprintf(stderr, "Erro: '%s' não é um ficheiro nem uma diretoria.\n", arg_path);
+}
+
+void send_cmd(int fifo_fd, char* arg_path){
+	Comando cmd;
+
+	switch(fork()){
+		case 0: /* processo filho */
+			last_file = arg_path;
+			cmd = aloca_inicializa_comando(cmd_abbrev, arg_path);
+			
+			if(write(fifo_fd, cmd, tamanhoComando()) != tamanhoComando())
+				PERROR_AND_EXIT("write")
+			
+			close(fifo_fd);
+			free(cmd);
+			pause();
+			_exit(1);
+		case -1:
+			perror("fork");
+			_exit(1);
+	}
 }
