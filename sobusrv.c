@@ -8,6 +8,7 @@
 #define SEPARADOR 31
 /* Todo:
  * - script de instalação
+?? se puser um fork à volta do zip da versao com pastas no servidor, ja funciona(prolly not, e com a versao nova do zip?)?~
  * - struct de comando
  * - ver o que acontece quando temos dois processos sobre o mesmo ficheiro (podem ser sessoes diferentes - impedir a todo o custo 
  * - por a enviar ficeiros pelos pipes em vez de o fazer noservidor - nesse caso basta fazer 2 fifos adicionais, um para restore e outro para backup - ver como o fazer para varios clientes, comunicar dados através de uma estrutura de dados "dados"
@@ -60,7 +61,7 @@ void zipFile(char * filepath, char * newFile){
 		char buf[SIZE_READS];
 		int lidos;
 		close(pipefd[1]); /* fecha a ponta de escrita*/
-		wait(NULL);
+		//wait(NULL);
 		while((lidos = read(pipefd[0], buf, SIZE_READS)) > 0){
 			write(fd, buf, lidos);
 		}
@@ -85,35 +86,53 @@ void parse_path(char * path){
 }
 
 int backup(char * file){
-
 	char path_sha1_data[MAX_PATH];
 	char path_link_metadata[MAX_PATH];
 	char * sha1 = sha1sum(file);
+	char nomeFicheiro[256];/*substituir macro linux*/
+	char ficheiroPath[MAX_PATH]; /* caminho do ficheiro que guarda o path original do ficheiro */
+	
+	int i, j, len, fd;
+	len = strlen(file);
 
+	/* poe em nomeFicheiro o nome do ficheiro */	
+	for(i = 0, j = 0; i < len; i++){
+		if(file[i] == '/')
+			j = 0;
+		else nomeFicheiro[j++] = file[i];
+	}
+	nomeFicheiro[j] = '\0';
+	/* */
+	
 	strcpy(path_sha1_data, data_path);
 	strcat(path_sha1_data, sha1);
 	strcat(path_sha1_data, ".gz");
-	free(sha1);
 	
 	/* local na metadata */
-	strcpy(path_link_metadata, metadata_path);
+	strcpy(path_link_metadata, metadata_path);	
+	strcat(path_link_metadata, nomeFicheiro);
+
+	/* ficheiro que ira conter caminho original do ficheiro a guardar */	
+	strcpy(ficheiroPath, metadata_path);	
+	strcat(ficheiroPath, ".");
+	strcat(ficheiroPath, nomeFicheiro);
 	
-	
-	if(access(path_sha1_data, F_OK) != -1){ // se o ficheiro existe 
-		// regista o link se o nome nao estivera ser usado 					
-			parse_path(file);
-			strcat(path_link_metadata, file);
-			symlink(path_sha1_data, path_link_metadata); 
-	}else{
-		// regista o link e faz o zip 
-		if(!fork()){
-			zipFile(file, path_sha1_data);	
-			parse_path(file);
-			strcat(path_link_metadata, file);
-			symlink(path_sha1_data, path_link_metadata); 
-		}
-	}
-	
+	/* se ja houver um ficheiro diferente com o mesmo nome, nao podemos fazer backup sem ambiguidade. nao guardamos o ultimo ficheiro */
+	if(symlink(path_sha1_data, path_link_metadata) == -1)
+		return -1; 
+	/* fazer free(sha1) se return -1 */
+	if((fd = open(ficheiroPath, O_CREAT | O_WRONLY, 0666)) == -1)
+		return -1;
+	if(write(fd, file, strlen(file)) == -1)
+		return -1;
+	if(write(fd, "", 1) == -1)
+		return -1;
+	close(fd);
+
+	if(access(path_sha1_data, F_OK) == -1) // se os dados nao estao guardados 
+		zipFile(file, path_sha1_data);	
+		
+	free(sha1);
 	return 0;
 }	
 
