@@ -14,7 +14,7 @@ unninstall:
 debug: CFLAGS = -Wall -Wextra -g
 debug: all
 
-sobucli: sobucli.o comando.o comando.h
+sobucli: sobucli.o readln.o comando.o comando.h
 	$(LINK.c) $^ $(OUTPUT_OPTION)
 
 sobusrv: sobusrv.o comando.o

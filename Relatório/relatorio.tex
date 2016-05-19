@@ -1,0 +1,41 @@
+%Preâmbulo
+\documentclass[a4paper,12pt,titlepage,portuguese]{article}
+
+\usepackage[portuguese]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref,textgreek}
+
+\makeatletter
+  \newcommand{\nop}[1]{\Hy@raisedlink{\hypertarget{#1}{}}}
+\makeatother
+
+\title{Relatório do Trabalho Prático de Sistemas Operativos\\[1cm]\large{\textbf{Backup-Eficiente}}\\\large{2015/2016-MIEI}}
+
+\author{João Martins (A68646) \\João Pereira (A75273)}
+
+\date{\today}
+%Fim do Preâmbulo
+\begin{document}
+
+\pagenumbering{Alph}
+\maketitle
+
+\begin{abstract}
+\pagenumbering{gobble}
+O trabalho desenvolvido consiste num sistema de cópias de segurança de ficheiros capaz de realizar operações de \emph{backup} e restauro de ficheiros, bem como de remoção de ficheiros de cópia de segurança e \emph{garbage collection}. A segue uma arquitetura de cliente-servidor, dado que as várias opera em que um ou mais programas \texttt{cliente} enviam (através de um \emph{pipe} com nome) pedidos de  para um servidor que executa os pedidos e responde com os sinais \texttt{SIGUSR1} ou \texttt{SIGUSR2} de forma a indicar o sucess ou insucesso de cada operação, respetivamente. para indicar se a opera
+\end{abstract}
+
+\pagenumbering{roman}
+\tableofcontents
+
+\newpage
+
+\pagenumbering{arabic}
+
+\section{Aspetos gerais às várias tarefas}
+
+
+\section{Conclusão}
+
+\end{document}
