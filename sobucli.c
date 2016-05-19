@@ -138,7 +138,11 @@ void send_cmd(int fifo_fd, char* arg_path, char* resolved_path){
 		switch(fork()){
 			case 0: /* processo filho */
 				last_file = arg_path;
-				cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
+				if(resolved_path)
+					cmd = aloca_inicializa_comando(cmd_abbrev, resolved_path);
+				else
+					cmd = aloca_inicializa_comando(cmd_abbrev, arg_path);
+				
 				if(write(fifo_fd, cmd, tamanhoComando()) != tamanhoComando())
 					PERROR_AND_EXIT("write")
 				
