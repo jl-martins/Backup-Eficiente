@@ -36,7 +36,7 @@ A função \texttt{execComando()} serve unicamente para invocar a operação cor
 com os argumentos necessários, se for o caso.
 
 As operações suportadas estão implementadas, através de funções com o nome respetivo, da seguinte maneira:
-%falar do sha1sum
+
 \subsubsection{backup(char * filepath)}
 Dado um caminho absoluto de um ficheiro, calculamos o \texttt{sha1sum} através da função \texttt{sha1sum()} e inserimos um \texttt{symlink} com o nome do ficheiro a guardar que aponta
 para \texttt{data/sum.gz}, em que \texttt{sum} é o resultado da função \texttt{sha1sum()}. Se já existir um \texttt{symlink} com esse nome na \texttt{data},
@@ -73,12 +73,28 @@ Dado um caminho absoluto de uma pasta, restaura a pasta e todos os ficheiros des
 O programa percorre todos os ficheiros guardados na pasta \texttt{metadata} e, sempre que encontra um ficheiro que guarda o path de um ficheiro guardado
 (i.e. sempre que encontra um ficheiro cujo nome começa pelo caracter não imprimivel que definimos),
 lê o conteúdo desse ficheiro(que corresponde ao caminho de um ficheiro) para um buffer e se o caminho absoluto da pasta passado como argumento for um prefixo 
-do caminho que está no buffer, quer dizer que esse ficheiro estava na pasta que pretendemos restaurar e por isso restauramos o ficheiro com a restore.
+do caminho que está no buffer(verificado com a função \texttt{strstr}, quer dizer que esse ficheiro estava na pasta que pretendemos restaurar e
+ por isso restauramos o ficheiro com a restore.
 
 \subsubsection{ sha1sum(char * filepath) - função auxiliar}
-
+Dado o caminho absoluto para um ficheiro, devolve uma string com o seu sha1sum. Esta função cria um pipe anónimo e depois faz um \texttt{fork}. No processo filho,
+fecha-se a ponta de leitura do pipe e depois, através do \texttt{dup}, redireciona o \texttt{stdout} para o pipe criado. A seguir, invoca a \texttt{execlp} 
+de forma a executar o programa \texttt{sha1sum} e escreve o seu resultado no pipe anónimo. No pai, fecha-se a ponta de escrita do pipe.
+O pai espera que o filho termine com um \texttt(wait) e verifica 
+o código de saída do filho. Se este não indicar nenhum erro, o conteúdo do pipe é lido para um buffer que foi alocado dinamicamente e o endereço desse buffer
+é devolvido.
 \subsubsection{ zipFile(char * filepath, char * newFile, int opcao) - função auxiliar}
+Dados dois caminhos absolutos, indicados no título como filepath e newFile, esta função faz zip/unzip do ficheiro especificado em filepath e coloca o resultado
+no caminho indicado por newFile, dependendo do valor \texttt{opcao}. Os valores possíveis do argumento \texttt{opcao} são \texttt{ZIP} e \texttt{UNZIP}.
+Quando é invocada, esta função cria um pipe anónimo e depois faz \texttt{fork}. O filho redireciona o \texttt{stdout} para a ponta de escrita do pipe e depois faz
+um \texttt{exec} para executar o \texttt{gzip} com a opção \texttt{-c} para imprimir o resultado da compressão no \texttt{stdout}. O processo pai entra num loop
+de leitura do contúdo do pipe e escrita no ficheiro pretendido. Quando o processo filho terminar e o fifo 'esvaziar', o pai sai do loop e a função termina.
+
 \subsubsection{ temLink(char * filepath) - função auxiliar}
+Dado um caminho absoluto para um ficheiro, esta função devolve 1 se existe um link para esse ficheiro na pasta \texttt{metadata} e 0 caso contrário.
+Esta verificação é feita percorrendo os links da pasta \texttt{metadata} e se a expansão do caminho apontado por um link(através da \texttt{readlink}) 
+resultar num caminho igual ao que é passado como argumento, então encontramos um link para esse ficheiro e devolvemos 1. Se nenhum link na pasta verificar 
+esta condição, devolvemos 0;
 
 \section{Melhorias possíveis}
 Com o avançar do projeto apercebemo-nos que seria melhor implementar no processo "principal" do \texttt{sobusrv} 

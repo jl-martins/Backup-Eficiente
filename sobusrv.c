@@ -30,13 +30,6 @@ int frestore(char * path);
 int gc();
 int temLink(char * file);
 
-/* Todo:
- * - ficheiro de log (escrever no servidor)
- * - tirar os warnings
- * verificar todo o codigo e ver retorno de syscalls
- * comentar tudo 
-*/ 
-
 char backup_path[MAX_PATH];   /* pasta de backups */
 char metadata_path[MAX_PATH]; /* pasta de metadata */ 
 char data_path[MAX_PATH];     /* pasta de dados */
@@ -81,12 +74,17 @@ int delete(char * filename){
  */
 char * sha1sum(char * filename){
 	int pipefd[2];
-	int exitStatus;
-	pipe(pipefd);
-	if(fork()){
+	int exitStatus, fork_result;
+	if(pipe(pipefd) == -1)
+		_exit(-1);
+	fork_result = fork();
+	if(fork_result == -1)
+		_exit(-1);
+	if(fork_result){
 		char *  sha1 = malloc(TAMANHO_SHA1SUM + 1);
 		if(close(pipefd[1]) == -1){  /* fecha a ponta de escrita */
-		}	                    /* tira o aviso do compilador */  
+		}	                    /* tira o aviso do compilador - o programa nao termina se a syscall falhar porque e
+					       possivel continuar o programa sem problemas */  
 		wait(&exitStatus);  
 
 		if(WEXITSTATUS(exitStatus) != 0 ||
@@ -97,7 +95,7 @@ char * sha1sum(char * filename){
 			_exit(-1);
 		}
 
-		if(close(pipefd[0])){
+		if(close(pipefd[0]) == -1){
 		}
 		sha1[TAMANHO_SHA1SUM] = '\0';	
 		return sha1;
@@ -142,7 +140,9 @@ void zipFile(char * filepath, char * newFile, int opcao){
 		} 
 
 		while((lidos = read(pipefd[0], buf, SIZE_READS)) > 0){
-			write(fd, buf, lidos);
+			if(write(fd, buf, lidos) == -1){
+				_exit(-1);
+			}
 		}
 		if(lidos == -1){
 			logServer("[ERRO] zipFile: erro de escrita\n");
@@ -170,7 +170,7 @@ int temLink(char * name){
 	int len = strlen(metadata_path);
 	int k;
 	strcpy(ficheiro, metadata_path);
-	while(d = readdir(metadata)){
+	while((d = readdir(metadata))){
 		if(d->d_name[0] == PATH_FILE_INDICATOR[0])
 			continue;
 		strcpy(ficheiro+len, d->d_name);
@@ -192,7 +192,7 @@ int gc(){
 	struct dirent * d;
 	int len = strlen(data_path);
 	strcpy(ficheiro, data_path);
-	while(d = readdir(data)){
+	while((d = readdir(data))){
 		strcpy(ficheiro+len, d->d_name);
 		if(!temLink(ficheiro))
 			unlink(ficheiro);	
@@ -211,7 +211,7 @@ int frestore(char * caminhoAbsolutoPasta){
 
 	metadata = opendir(metadata_path);
 	strcpy(caminhoFicheiro, metadata_path);
-	while(d = readdir(metadata)){
+	while((d = readdir(metadata))){
 		if(d->d_name[0] != PATH_FILE_INDICATOR[0])
 			continue;
 		strcpy(caminhoFicheiro + len, d->d_name);
