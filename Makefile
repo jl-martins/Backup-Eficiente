@@ -3,13 +3,16 @@ TARGET_ARCH = -march=native
 
 all: sobucli sobusrv
 
-.PHONY: all install clean
+.PHONY: all install unninstall relatorio clean
 
 install: all
 	bash install.sh
 
 unninstall:
 	bash unninstall.sh
+
+relatorio:
+	cd Relatorio; pdflatex relatorio.tex
 
 debug: CFLAGS = -Wall -Wextra -g
 debug: all
@@ -23,3 +26,4 @@ sobusrv: sobusrv.o comando.o
 clean:
 	$(RM) sobucli sobusrv
 	$(RM) *.o
+	rm -f Relatorio/relatorio.{aux,log,out,toc}

@@ -1,0 +1,299 @@
+%Preâmbulo
+\documentclass[a4paper,12pt,titlepage,portuguese]{article}
+
+\usepackage[portuguese]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref,textgreek}
+
+\makeatletter
+  \newcommand{\nop}[1]{\Hy@raisedlink{\hypertarget{#1}{}}}
+\makeatother
+
+\title{Relatório do Trabalho Prático de Sistemas Operativos\\[1cm]\large{\textbf{Backup-Eficiente}}\\\large{2015/2016-MIEI}}
+
+\author{João Martins (A68646) \\João Pereira (A75273)}
+
+\date{\today}
+%Fim do Preâmbulo
+\begin{document}
+
+\pagenumbering{Alph}
+\maketitle
+
+\begin{abstract}
+\pagenumbering{gobble}
+O trabalho desenvolvido consiste num sistema de cópias de segurança de ficheiros escrito em \texttt{C}, que segue uma arquitetura cliente/servidor e suporta operações de \emph{backup} e restauro de ficheiros, bem como de remoção de ficheiros de cópia de segurança e \emph{garbage collection}. Todas as operações são executadas num programa servidor, a pedido de um ou mais programas cliente que poderão estar a executar em simultâneo, desde que estejam na mesma conta de utilizador que o servidor. Cada instância do programa cliente (\texttt{sobucli}) envia um comando para o servidor (\texttt{sobusrv}) através de um fifo (\emph{named pipe}) situado na raiz do backup. O sucesso/insucesso a executar um pedido de um cliente é indicado pelo servidor através dos sinais \texttt{SIGUSR1} (sucesso) e \texttt{SIGUSR2} (insucesso).
+
+\end{abstract}
+
+\pagenumbering{roman}
+\tableofcontents
+
+\newpage
+
+\pagenumbering{arabic}
+
+\section{Configuração}
+
+\subsection{Instruções}
+
+\subsubsection{Instalação}
+
+Para instalar o sistema de cópias de segurança:
+	\begin{enumerate}
+		\item Descomprimir o ficheiro \texttt{SO\_Grupo3.zip};
+		\item Invocar o comando \texttt{make install} e introduzir as credenciais do \emph{superuser} quando pedidas;
+	\end{enumerate}
+\textbf{Nota:} é necessário introduzir as credenciais do \emph{superuser} para mover os executáveis para a diretoria \texttt{/usr/bin}, permitindo assim que seja possível invocar \texttt{sobucli} e \texttt{sobusrv} sem especificar o caminho absoluto dos executáveis.
+
+\subsubsection{Desinstalação}
+
+Para desinstalar o sistema de cópias de segurança:
+	\begin{enumerate}
+		\item Invocar o comando \texttt{make unninstall} na diretoria que tem a \texttt{Makefile} do projeto e introduzir as credenciais do \emph{superuser} quando pedidas;
+		\item Optar por apagar ou não apagar os dados dos \emph{backups} antigos quando questionado;
+	\end{enumerate}
+\textbf{Nota:} as credenciais de \emph{superuser} são necessárias apenas para remover \texttt{sobucli} e \texttt{sobusrv} da diretoria \texttt{/usr/bin}.
+
+\newpage
+
+\subsection{Makefile e scripts}
+
+\subsubsection{Makefile}
+Apresenta-se a \texttt{Makefile} utilizada pelo grupo para gerar os executáveis, invocar os scripts de instalação/desinstalação (\texttt{make install} e \texttt{make unninstall}, respetivamente) e gerar o relatório (\texttt{make relatorio}):
+	\begin{verbatim}
+	CFLAGS = -Wall -Wextra -O2
+	TARGET_ARCH = -march=native
+
+	all: sobucli sobusrv
+
+	.PHONY: all install unninstall relatorio clean
+
+	install: all
+		bash install.sh
+
+	unninstall:
+		bash unninstall.sh
+
+	relatorio:
+		cd Relatorio; pdflatex relatorio.tex
+
+	debug: CFLAGS = -Wall -Wextra -g
+	debug: all
+
+	sobucli: sobucli.o readln.o comando.o comando.h
+		$(LINK.c) $^ $(OUTPUT_OPTION)
+
+	sobusrv: sobusrv.o comando.o
+		$(LINK.c) $^ $(OUTPUT_OPTION)
+
+	clean:
+		$(RM) sobucli sobusrv
+		$(RM) *.o
+		$(RM) Relatorio/relatorio.{aux,log,out,toc}
+	\end{verbatim}
+
+\newpage
+\subsubsection{install.sh}
+O \emph{script} de instalação \texttt{install.sh}:
+	\begin{enumerate}
+		\item Cria a diretoria \texttt{\$HOME/.Backup/} (raiz do \emph{backup});
+		\item Cria as pastas \texttt{data} e \texttt{metadata} na raiz do \emph{backup};
+		\item Invoca \texttt{mkfifo} para criar, na raiz do \emph{backup}, o \texttt{fifo} o utilizado para os clientes enviarem comandos ao servidor as pastas \texttt{data} e \texttt{metadata};
+		\item Move os executáveis \texttt{sobucli} e \texttt{sobusrv} para a diretoria \texttt{/usr/bin};
+	\end{enumerate}
+\textbf{Nota:} se algumas das pastas/ficheiros a criar já existir, a instalação prossegue sem causar quaisquer problemas. 
+\\Código de \texttt{install.sh}:
+	\begin{verbatim}
+	mkdir -p $HOME/.Backup/data
+	mkdir -p $HOME/.Backup/metadata
+	if [ ! -p $HOME/.Backup/fifo ]; then
+		mkfifo $HOME/.Backup/fifo -m 0666
+	fi
+	sudo mv -t /usr/bin sobucli sobusrv
+	\end{verbatim}
+
+\subsubsection{unninstall.sh}
+O script de desinstalação:
+	\begin{enumerate}
+		\item Remove o \emph{log} de erros de \texttt{sobusrv};
+		\item Remove \texttt{sobucli} e \texttt{sobusrv} de \texttt{/usr/bin};
+		\item Pergunta ao utilizador se pretende remover os dados dos seus \emph{backups} e, caso o utilizador pretenda fazê-lo, remove a pasta \texttt{\$HOME/.Backup} e todos os seus conteúdos;
+	\end{enumerate}
+Código de \texttt{unninstall.sh}:
+	\begin{verbatim}
+	rm -f  $HOME/.Backup/fifo $HOME/.Backup/log.txt
+
+	sudo rm -f  /usr/bin/sobucli /usr/bin/sobusrv 
+	echo "Deseja apagar os dados de backups antigos?"
+	select sn in "Sim" "Nao"; do
+	    case $sn in
+	        Sim ) rm -rf $HOME/.Backup; break;;
+	        Nao ) exit;;
+	    esac
+	done
+	\end{verbatim}
+
+\section{Estruturação das diretorias do backup}
+
+\subsection{metadata}
+Em \texttt{metadata} temos, para todo o ficheiro \texttt{f} salvaguardado com o comando \texttt{backup}:
+	\begin{itemize}
+		\item Um \emph{link} simbólico para o conteúdo original comprimido de \texttt{f}. O nome deste \emph{link} é igual ao do ficheiro original;
+		\item Um ficheiro de texto com uma única linha que indica o caminho absoluto original do ficheiro \texttt{f}, permitindo-nos assim a recuperação do ficheiro para o seu local original, aquando da invocação do comando \texttt{restore}. O nome deste ficheiro de texto não pode ser igual ao do \emph{link} simbólico referido em \texttt{1.}, pelo que optamos por, partindo do nome do \emph{link} simbólico, acrescentar o caratére \texttt{Unit Separator} (\texttt{ASCII} 31) ao início do nome do ficheiro de texto.
+	\end{itemize}
+
+\subsection{data}
+A diretoria \texttt{/data/}, situada na raiz do \emph{backup}, armazena os ficheiros salvaguardados com o comando \texttt{backup} num ficheiro comprimido com o programa \texttt{.gzip}. O nome do ficheiro comprimido é o \texttt{digest} do conteúdo do ficheiro original (produzido pelo programa \texttt{sha1sum}), seguido de \texttt{.gz}.\\\\\textbf{Nota:} se o utilizador tiver vários ficheiros com o mesmo conteúdo e nomes diferentes, apenas guardamos o conteúdo comprimido do primeiro desses ficheiros a ser enviado para \emph{backup}. Para cada um dos restantes ficheiros criamos somente um \emph{link} em \texttt{metadata} que aponta para o conteúdo comprimido já existente em \texttt{/data} e armazenamos o caminho original de cada um deles, evitando assim a duplicação de dados.
+
+\section{Operações suportadas}
+
+O programa desenvolvido suporta operações de:
+
+	\begin{itemize}
+		\item \emph{Backup} de ficheiros/diretorias;
+		\item Recuperação de ficheiros;
+		\item Remoção de ficheiros de cópia de segurança;
+		\item \emph{Garbage collection}, i.e.: remoção de todos os ficheiros da pasta \texttt{/data} que não têm qualquer link simbólico da pasta \texttt{/metadata} que os referencie;
+	\end{itemize}
+
+\subsection{backup}
+
+Ao invocar o comando \texttt{sobucli backup}, o utilizador pode optar especificar tanto caminhos absolutos como caminhos relativos nos ficheiros passados como argumentos para o comando, uma vez que o programa \texttt{sobucli} tem a capacidade de expandir caminhos relativos para caminhos absolutos antes de enviar um comando para o servidor.
+
+\textbf{Nota:} de forma a seguir o esquema de \emph{links} simbólicos apresentado na página 3 do enunciado (antes da secção de \texttt{Valorização}), optamos por atribuir a cada \emph{link} simbólico o nome do ficheiro original a que este diz respeito (sem guardar o caminho absoluto desse ficheiro no nome do \emph{link}). Este tipo de abordagem leva a que não seja possível fazer \emph{backup} de 2 ficheiros que estão em diretorias diferentes e têm o mesmo nome. Uma forma de contornar esta limitação seria guardar no nome de cada \emph{link} o caminho absoluto do ficheiro comprimido para que este aponta. A impossibilidade de utilizar \'/\' no nome do \emph{link} poderia ser contornada substituindo \'/\' por um caratére que possa ser utilizado no nome de ficheiros e que praticamente nunca seja introduzido pela maioria dos utilizadores, como por exemplo o caratére \texttt{Unit Separator} (\texttt{ASCII} 31). Outra solução seria ter em \texttt{/metadata} cada uma das pastas constituintes do caminho dos ficheiros de que se fez \emph{backup} (replicando de certa forma a hierarquia do sistema de ficheiros). A título de exemplo, suponhamos que é pedido o \emph{backup} de 2 ficheiros de nome igual e conteúdo diferente, cujos caminhos são \texttt{/home/user/Desktop/a.pdf} e \texttt{/home/user/Documents/a.pdf}. Na abordagem referida, teríamos em \texttt{/metadata} os caminhos \texttt{/home/joao/Desktop/a.pdf} e \texttt{/home/joao/Documents/a.pdf}, em que o último elemento de cada um desses caminhos é um \emph{link} simbólico para o conteúdo comprimido do respetivo ficheiro original.
+
+\subsection{restore}
+
+Na invocação do comando \texttt{sobucli restore}, o utilizador deverá introduzir apenas o nome dos ficheiros que pretende restaurar para o seu caminho original. Note-se que não há qualquer ambiguidade porque, tal como foi referido na subsecção anterior, depois de o utilizador fazer \emph{backup} de um dado ficheiro, não poderá fazer \emph{backup} de outros ficheiros com o mesmo nome que o primeiro. É também importante notar que o comando \texttt{sobucli restore} serve para restaurar ficheiros e não diretorias. Para restaurar diretorias o utilizador deverá invocar o comando \texttt{sobucli frestore} (\emph{folder restore}).
+
+\textbf{Nota:} Os comandos \texttt{sobucli backup} e \texttt{sobucli restore} não deverão ser executados em simultâneo, uma vez que a ordem pela qual chegam ao servidor não é necessáriamente a ordem pela qual são introduzidos e o resultado obtido depende da ordem de execução dos comandos. Assim, se o utilizador optar por executar \texttt{sobucli backup} e \texttt{sobucli restore} em simultâneo, o comportamento é indefinido.
+
+\subsection{delete}
+
+O comando \texttt{sobucli delete} recebe uma lista de um ou mais \underline{ficheiros}
+
+\section{struct command}
+
+De forma a agrupar numa única estrutura os vários dados que o servidor necessita para executar um determinado comando, o grupo optou por definir a \texttt{struct command}, permitindo assim que a informação de cada comando enviado para servidor tenha um número fixo de bytes (dado por \texttt{sizeof(struct command)}), facilitando o acesso à mesma. 
+
+Cada comando que é enviado para \texttt{sobusrv} tem 3 campos:
+
+	\begin{itemize}
+		\item \texttt{pid} do processo que enviou o comando, de forma a que o servidor possa enviar o sinal que indica conclusão de uma operação ou erro ao processo que ficou encarregue por pedir essa operação;
+		\item caminho absoluto, relativo ou um astring 
+
+\section{sobucli}
+
+\subsection{Utilização}
+
+\texttt{sobucli} - envia para \texttt{sobusrv} comandos de cópia, restauro e remoção de ficheiros, bem como de \emph{garbage collection}.
+\\\\\texttt{sobucli comando [ficheiros]...}
+
+\subsection{Implementação}
+
+\subsubsection{Validação de comandos}
+
+O envio de comandos que sabemos logo à partida que são inválidos iria ocupar desnecessariamente \texttt{sobusrv}, pelo que optamos por realizar logo à partida todas as validações que o cliente possa fazer. Assim, mal uma instância de \texttt{sobucli} começa a executar, verificamos:
+
+	\begin{enumerate}
+		\item se \texttt{argc} é superior a 1 (i.e.: se o utilizador introduziu um comando);
+		\item se, nos casos em que o comando (\texttt{argv[1]}) é \texttt{gc}, \texttt{argc} é igual a 2 (isto porque \texttt{gc} não recebe quaisquer argumentos);
+		\item se, nos casos em que o comando introduzido é \texttt{backup}, \texttt{restore}, \texttt{delete} ou \texttt{frestore}, temos \texttt{argc >= 3}, i.e.: se foram especificados ficheiros à direita do comando introduzido;
+	\end{enumerate}
+Se alguma das condições acima referidas falhar, o programa cliente imprime no \texttt{stderr} a mensagem de erro adequada à pré-condição que falhou e termina a execução com \texttt{\_exit(1)} sem chegar a abrir o \texttt{fifo} para escrita.
+
+\subsubsection{Abreviaturas de comandos} \label{Abreviaturas de comandos}
+
+Atentando no facto de todos os comandos implementados começarem com uma inicial diferente, o grupo optou por abreviar cada um dos comandos à sua 1ª letra, tendo para esse fim criado a função \texttt{get_cmd_abbrev}:
+
+	\begin{verbatim}
+	/* 
+ 	 * Valida o comando introduzido com base em argc e argv e, se este for
+ 	 * valido, devolve uma abreviatura do mesmo. A abreviatura devolvida
+ 	 * nao e mais do que a 1ª letra do comando. Se o comando ou o numero de
+ 	 * argumentos forem invalidos, imprime uma mensagem de erro no stderr e 
+ 	 * devolve o carater '\0'.
+ 	 */
+	char get_cmd_abbrev(int argc, char* argv[]);
+	\end{verbatim}
+\texttt{get_cmd_abbrev} realiza cada uma das validações listadas em \ref{Abreviaturas de comandos} e se alguma falhar, apresenta uma mensagem de erro de acordo com a condição que falhou \texttt{stderr} e devolve \'\\0\'. Se nenhuma das validações falhar, é devolvido o primeiro caratére do comando introduzido. 
+
+A utilização de abreviaturas de comandos permite que, sempre que pretendemos testar qual é o comando a ser executado, não tenhamos que invocar a função \texttt{strcmp}.
+
+\subsubsection{Variáveis globais ao módulo sobucli}
+
+No início de \texttt{sobucli.c} temos a declaração das seguintes variáveis globais:
+
+	\begin{verbatim}
+	static char cmd_abbrev = '\0';
+	static char* last_file = NULL;
+	static int nchild;
+	\end{verbatim}
+\texttt{cmd_abbrev} guarda a abreviatura do comando que está a ser executado, ou \texttt{\'\0\'} se ainda não foi lido um comando válido. Esta variável é global para que no interior do \texttt{sighandler} invocado para tratar \texttt{SIGUSR1} e \texttt{SIGUSR2} tenhamos informação relativamente ao comando que foi executado e possamos imprimir a mensagem de sucesso/erro adequada. 
+
+\texttt{last_file} é um apontador para o caminho absoluto/relativo do último ficheiro tratado numa determinada operação. Esta variável também é global para que possa ser acedida \texttt{sighandler} de \texttt{SIGUSR1} e \texttt{SIGUSR2} e possamos imprimir o nome e/ou o caminho do ficheiro utilizado num dado pedido.
+
+\texttt{nchild} permite controlar o número de processos filhos criado pelo programa cliente, uma vez que, para cada ficheiro da lista de ficheiros passada nos comandos \texttt{backup}, \texttt{restore} e \texttt{delete}, criamos um processo filho que fica responsável por enviar o seu \texttt{pid}, o comando a executar e o ficheiro/caminho absoluto a usar na operação. Embora não tenha sido imposto um limite ao número de processos filho que uma instância de \texttt{sobucli} poderá criar, o grupo optou por impor um limite de 5 processos filho em cada instante. A forma como o número de processos filho é controlado será apresentada com mais detalhe na secção \ref{Envio de comandos}.
+
+\subsubsection{Construção do caminho da fifo}
+
+O caminho absoluto do \texttt{fifo} é obtido da seguinte forma:
+	\begin{verbatim}
+		char backup_path[MAX_PATH];
+		(...)
+		strcpy(backup_path, getenv("HOME"));
+		strcat(backup_path, "/.Backup");
+		strcat(backup_path, "/fifo");
+	\end{verbatim}
+, onde \texttt{MAX_PATH} é uma macro definida como 2048.
+\textbf{Nota:} \underline{não confundir} a macro \texttt{MAX_PATH}, definida pelo grupo, com a macro \texttt{PATH_MAX}, definida em \texttt{Linux} e \texttt{Mac OSX}. \texttt{PATH_MAX} está definida na maioria dos sistemas operativos \texttt{Linux} como 4096, devido a este ser o tamanho máximo para o qual há garantia que uma invocação da \emph{system call} \texttt{write()} é atómica. A razão para o grupo limitar o tamanho máximo de cada \emph{path} a 2048 caratéres \texttt{ASCII} prende-se com a necessidade de, em cada comando enviado para o servidor, enviarmos informação adicional como o \emph{pid} do processo que enviou o comando e a abreviatura desse comando. Se o tamanho máximo de cada caminho fosse 4096 caratéres, a escrita adicional da abreviatura do comando e do \texttt{pid} do processo que o enviou iriam implicar um \texttt{write} de um número superior a 4096 caratéres, pelo que não teríamos garantias relativamente à atomicidade de cada escrita no \texttt{fifo} usado para comunicar como o servidor. Ora, se as escritas no \texttt{fifo} não fossem atómicas, ao existir mais do que um processo \texttt{sobucli} a escrever no \texttt{fifo}, correríamos o risco de enviar partes de comandos diferentes intercaladas umas com as outras, corrompendo as mensagens que se pretende transmitir.
+
+\subsubsection{Envio de comandos} \label{Envio de comandos}
+
+O grupo optou por 
+
+
+\subsubsection{Comandos de backup}
+
+O servidor (\texttt{sobusrv}) necessita de ter conhecimento do caminho absoluto dos ficheiros de que o cliente pretende fazer \emph{backup} para que seja possível restaurá-los para o seu caminho original. Assim, mesmo que o utilizador invoque o comando \texttt{sobucli backup} com um ou mais ficheiros para os quais especifica apenas um caminho relativo à sua \emph{working directory}, o programa \texttt{sobucli} trata de expandir cada um desses caminhos relativos para or respetivo caminho absoluto, através da invocação da função \texttt{realpath}, importada da \texttt{stdlib}. A utilização de \texttt{realpath} permite ainda a realização de verificações adicionais, uma vez que se o utilizador especificar um caminho inválido \texttt{realpath} devolve \texttt{NULL}, permitindo que o cliente apresente uma mensagem de erro e passe para o próximo argumento de \texttt{backup}.
+
+Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um ficheiro passado como argumento para o comando de \texttt{backup}, o grupo testa se o caminho absoluto obtido diz respeito a um ficheiro ou a uma diretoria, recorrendo para isso às funções \texttt{is_file} e \texttt{is_dir}, definidas com o auxílio da \emph{system call} \texttt{stat} da seguinte forma:
+
+	\begin{verbatim}
+	int is_file(char* path){
+		struct stat sb;
+
+		if(stat(path, &sb) == -1){
+			perror("stat");
+			return 0;
+		}
+		return S_ISREG(sb.st_mode);
+	}
+
+	int is_dir(char* path){
+		struct stat sb;
+
+		if(stat(path, &sb) == -1){
+			perror("stat");
+			return 0;
+		}
+		return S_ISDIR(sb.st_mode);
+	}
+	\end{verbatim}
+
+Se o caminho absoluto disser respeito a uma diretoria, então basta enviar um comando de \texttt{backup}, invocando a função \texttt{send_cmd}, definida
+
+
+	\begin{itemize}
+		\item \texttt{backup} para realizar \emph{backup} de um ficheiro ou de uma diretoria;
+		\item \texttt{restore} para restaurar ficheiros para o seu local original;
+		\item \texttt{delete} para remover um ficheiro da cópia de segurança;
+		\item \texttt{gc} para eliminar todos os ficheiros da diretoria \texttt{/data} que não estejam a ser utilizados por nenhuma das entradas em \texttt{/metadata};
+		\item \texttt{frestore} (\emph{folder restore}) para restaurar uma diretoria;
+	\end{itemize}
+
+\section{Conclusão}
+
+\end{document}
