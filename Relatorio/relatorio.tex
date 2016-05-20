@@ -298,15 +298,11 @@ O caminho absoluto do \texttt{fifo} é obtido da seguinte forma:
 		strcat(backup_path, "/fifo");
 	\end{verbatim}
 
-\subsubsection{Envio de comandos} \label{Envio de comandos}
+\subsubsection{Caminhos absolutos dos argumentos}
 
-Se os argumentos de \texttt{sobucli} fossem enviados numa única linha para \texttt{sobusrv} haveria o risco de o número de bytes enviados exceder o \texttt{PIPE\_BUF} e nesse caso deixaríamos de ter garantias relativamente à atomicidade das escritas, levando a que quando são executadas várias instâncias de \texttt{sobucli} concorrentemente, partes de comandos de diferentes fossem intercaladas umas com as outras. Além disso, quando o servidor responde com \texttt{SIGUSR1} ou \texttt{SIGUSR2} de forma a indicar o sucesso ou insucesso de uma operação também é necessário saber a que operação este se refere e se um único processo enviasse todos os argumentos recebidos por \texttt{sobucli} numa única escrita, dificilmente se saberia a que ficheiro se refere cada um dos sinais recebidos. Assim, de forma a garantir a atomicidade das escritas e ao mesmo tempo ter uma forma de saber a que ficheiro diz respeito cada um dos sinais enviados por \texttt{sobusrv} (nas várias operações que não \texttt{gc}), o grupo optou por, para cada ficheiro dos argumentos de um dado comando, criar um processo filho de \texttt{sobucli} que fica encarregue de enviar o comando e 
+O servidor (\texttt{sobusrv}) necessita de ter conhecimento do caminho absoluto dos ficheiros de que o cliente pretende fazer \emph{backup} para que seja possível restaurá-los para o seu caminho original. Assim, mesmo que o utilizador invoque o comando \texttt{sobucli backup} com um ou mais ficheiros para os quais especifica apenas um caminho relativo à sua \emph{working directory}, o programa \texttt{sobucli} trata de expandir cada um desses caminhos relativos para o respetivo caminho absoluto, através da invocação da função \texttt{realpath}, importada da \texttt{stdlib}. A utilização de \texttt{realpath} possibilita também a realização de verificações adicionais, uma vez que se o utilizador especificar um caminho inválido \texttt{realpath} devolve \texttt{NULL}, permitindo que o cliente apresente uma mensagem de erro e passe para o próximo argumento de \texttt{backup} sem ter que \"incomodar\" o servidor.
 
-\subsubsection{Comandos de backup}
-
-O servidor (\texttt{sobusrv}) necessita de ter conhecimento do caminho absoluto dos ficheiros de que o cliente pretende fazer \emph{backup} para que seja possível restaurá-los para o seu caminho original. Assim, mesmo que o utilizador invoque o comando \texttt{sobucli backup} com um ou mais ficheiros para os quais especifica apenas um caminho relativo à sua \emph{working directory}, o programa \texttt{sobucli} trata de expandir cada um desses caminhos relativos para or respetivo caminho absoluto, através da invocação da função \texttt{realpath}, importada da \texttt{stdlib}. A utilização de \texttt{realpath} permite ainda a realização de verificações adicionais, uma vez que se o utilizador especificar um caminho inválido \texttt{realpath} devolve \texttt{NULL}, permitindo que o cliente apresente uma mensagem de erro e passe para o próximo argumento de \texttt{backup}.
-
-Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um ficheiro passado como argumento para o comando de \texttt{backup}, o grupo testa se o caminho absoluto obtido diz respeito a um ficheiro ou a uma diretoria, recorrendo para isso às funções \texttt{is\_file} e \texttt{is\_dir}, definidas com o auxílio da \emph{system call} \texttt{stat} da seguinte forma:
+Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um ficheiro passado como argumento para o comando de \texttt{backup}, testamos se o caminho absoluto obtido diz respeito a um ficheiro ou a uma diretoria, recorrendo para isso às funções \texttt{is\_file} e \texttt{is\_dir}, definidas com o auxílio da \emph{system call} \texttt{stat} da seguinte forma:
 
 	\begin{verbatim}
 	int is_file(char* path){
@@ -330,7 +326,51 @@ Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um fichei
 	}
 	\end{verbatim}
 
-Se o caminho absoluto remeter para uma diretoria, então enviamos um comando de \texttt{backup} através da invocação a função \texttt{send\_cmd()}, definida do seguinte modo:
+
+\subsubsection{Envio de comandos} \label{Envio de comandos}
+
+Se os argumentos de \texttt{sobucli} fossem enviados numa única linha para \texttt{sobusrv} haveria o risco de o número de bytes enviados exceder \texttt{PIPE\_BUF} e nesse caso deixaríamos de ter garantias relativamente à atomicidade das escritas, levando a que quando são executadas várias instâncias de \texttt{sobucli} concorrentemente, partes de comandos de diferentes fossem intercaladas umas com as outras. Além disso, quando o servidor responde com \texttt{SIGUSR1} ou \texttt{SIGUSR2} de forma a indicar o sucesso ou insucesso de uma operação também é necessário saber a que operação este se refere e se um único processo enviasse todos os argumentos recebidos por \texttt{sobucli} numa única escrita, dificilmente se saberia a que ficheiro se refere cada um dos sinais recebidos. Assim, de forma a garantirmos a atomicidade das escritas e ao mesmo tempo termos uma forma de saber a que ficheiro diz respeito cada um dos sinais enviados por \texttt{sobusrv} (nas várias operações que não \texttt{gc}) optamos por, para cada ficheiro dos argumentos de um dado comando, criar um processo filho de \texttt{sobucli} que fica encarregue de enviar o comando que diz respeito a esse ficheiro. A título de exemplo, se \texttt{sobucli} fosse invocado da seguinte forma \texttt{sobucli backup a.pdf b.pdf}, o processo original de \texttt{sobucli} iria criar 2 processos filho, um para enviar uma \texttt{struct Comando} que tem o seu \texttt{pid}, a abreviatura do comando (\'b\') e o caminho absoluto do ficheiro \texttt{a.pdf} e outro para enviar outra \texttt{struct Comando} com o seu \texttt{pid}, o comando \'b\' e o caminho absoluto de \texttt{b.pdf}. Assim, os comandos de \emph{backup} de um dado ficheiro, bem como \texttt{restore}, \texttt{frestore} e \texttt{delete} são enviados com através a função \texttt{send_cmd}, definida do seguinte modo:
+	
+	\begin{verbatim}
+	void send_cmd(int fifo_fd, char* arg_path, char* full_path){
+		Comando cmd;
+
+		if(nchild >= 5){ /* limita o número de processos filho */
+			wait(NULL);
+			--nchild;
+		}
+
+		switch(fork()){
+			case 0: /* processo filho */
+				last_file = (arg_path != NULL) ? arg_path : full_path;
+				if(full_path)
+					cmd = aloca_inicializa_comando(cmd_abbrev, full_path);
+				else
+					cmd = aloca_inicializa_comando(cmd_abbrev, arg_path);
+				
+				if(write(fifo_fd, cmd, tamanhoComando()) != tamanhoComando())
+					PERROR_AND_EXIT("write")
+				
+				close(fifo_fd);
+				free(cmd);
+				pause();
+				_exit(1);
+			case -1:
+				perror("fork");
+				_exit(1);
+		}
+	}
+	\end{verbatim}
+
+\texttt{fifo_fd} é o descritor do \texttt{fifo} por onde o comando será enviado, \texttt{arg\_path} é o caminho do ficheiro, tal como surge nos argumentos de \texttt{sobucli} e \texttt{full_path} é o caminho absoluto do ficheiro. No caso dos comandos de \texttt{backup} a função \texttt{send\_cmd} é sempre invocada com o \texttt{full\_path} do ficheiro a enviar para o servidor e \texttt{arg\_path} a \texttt{NULL}. No caso de \texttt{gc},  \texttt{arg\_path} é a string vazia \"\", de forma a indicar que o comando não tem argumentos. Para os restantes comandos é passado o \texttt{arg_path} e \texttt{full_path} é passado a \texttt{NULL}.
+
+Também é importante notar que no início de cada invocação de \texttt{send\_cmd} verificamos o valor do variável global \texttt{nchild} e se este for maior ou igual a 5, o processo pai espera por um dos seus filhos antes de prosseguir a execução e fazer um \texttt{fork()}.
+
+Chegando ao \texttt{switch}, o processo pai faz \texttt{fork()} e o processo filho guarda na variável global \texttt{last\_file} o caminho absoluto ou relativo (dependendo do comando a executar) do ficheiro a que o comando diz respeito (no caso de \texttt{gc} não é um ficheiro, mas sim uma \emph{String} vazia tal como já foi referido). Posto isto, se o processo \texttt{full\_path} for diferente de \texttt{NULL}, o processo filho cria um \texttt{Comando} com a variável global \texttt{cmd_abbrev} e com o argumento \texttt{full\_path}, se não cria um comando com \texttt{cmd\_abbrev} e \texttt{arg\_path}. Em seguida, este comando é escrito no \texttt{fifo} e em caso de sucesso, o processo filho fecha o descritor de escrita do \texttt{fifo}, liberta \texttt{cmd} e invoca \texttt{pause()} para aguardar pelo sinal do servidor a indicar conclusão ou erros na operação.
+
+\subsubsection{Backup de diretorias}
+
+Sempre que num comando de \emph{backup} um caminho absoluto remete para uma diretoria, executamos o programa \texttt{find}para obter os caminhos de todos os ficheiros que  enviamos um comando de \texttt{backup} através da invocação a função \texttt{send\_cmd()}, definida do seguinte modo:
 
 	
 
