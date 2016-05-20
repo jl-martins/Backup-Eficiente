@@ -5,9 +5,9 @@
 #include <fcntl.h>
 #include <limits.h> /* PATH_MAX e FILENAME_MAX */
 #include <signal.h>
-#include <stdio.h> /* perror() */
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h> /* strcpy(), strcat() e strlen() */
+#include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -109,7 +109,7 @@ char get_cmd_abbrev(int argc, char* argv[]){
 			r = '\0';
 		}
 		
-		if(r != '\0' && argc < 3){ /* o comando existe mas precisa de argumentos */
+		if(r != '\0' && argc < 3){ /* o comando existe mas faltam argumentos */
 			fprintf(stderr, "O comando '%s' precisa de pelo menos um argumento.\n", argv[1]);
 			r = '\0';
 		}
@@ -232,13 +232,20 @@ void send_cmd_backup_dir(int fifo_fd, char* full_path){
 		return;
 	}
 	while((nr = readln(buf, (void**) &full_path)) > 0){
+		full_path[strcspn(full_path, "\n")] = '\0'; /* remove '\n' de full_path */
 		if(is_file(full_path))
 			send_cmd(fifo_fd, NULL, full_path);
 	}
 }
 
+/* Faz um fork(), cria a struct comando no processo filho e envia por fifo_fd */
 void send_cmd(int fifo_fd, char* arg_path, char* full_path){
 	Comando cmd;
+
+	if(nchild >= 5){ /* limita o número de processos filho */
+		wait(NULL);
+		--nchild;
+	}
 
 	switch(fork()){
 		case 0: /* processo filho */
