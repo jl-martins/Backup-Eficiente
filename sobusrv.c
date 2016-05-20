@@ -8,22 +8,19 @@
 /* Opcoes da ZipFile */
 #define ZIP 0
 #define UNZIP 1
+#define PATH_FILE_INDICATOR "\031"
 
 /* Todo:
  * relatorio - por no inicio que restriçoes é que consideramos: a frestore tem de serpassada com acminho absoluto para permitir que se possam restaurar 2 pastas iguais e quando se executam 2 comandos sobre o mesmo ficheiro em simultaneo, um deles pode falhar. Se nao falhar, a ordem de execucao dos comandos é indefinida.
- * - struct dados e enviar os dados a partir do cliente (fazemos o zip no servidor e evitamos problemas de permissoes. nota: os dados vao ser guardados na home do utilizador que criou a pasta mesmo que o utilizador do cliente seja diferente? (indicar a resposta no relatorio nas consideraçoes)
    - backup recursivo das pastas no cliente
-?? se puser um fork à volta do zip da versao com pastas no servidor, ja funciona(prolly not, e com a versao nova do zip?)?~
- * - struct de comando
- * - ver o que acontece quando temos dois processos sobre o mesmo ficheiro (podem ser sessoes diferentes - impedir a todo o custo 
- * - por a enviar ficeiros pelos pipes em vez de o fazer noservidor - nesse caso basta fazer 2 fifos adicionais, um para restore e outro para backup - ver como o fazer para varios clientes, comunicar dados através de uma estrutura de dados "dados"
- * - delete(em paralelo)
+   - restore recursivo dos clientes
  * - gc em paralelo 
  * - ficheiro de log (escrever no servidor)
- * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto 
-- fazer testes(unitarios) para o zipFile e outras funçoes
- * - por frestore no cliente
- * armar sinais para quando ficheiros nao existem 
+ * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto - fazer testes(unitarios) para o zipFile e outras funçoes
+ * - por frestore no cliente- se nao der para fazer o frestore, apaga-se as referencias a ele no cliente, 
+ se nao fizer gc, alterar a execCmd de acordo(por o file fora do switch 
+ * verificar todo o codigo e ver retorno de syscalls
+ * comentar tudo 
 */ 
 
 /* ver como me certificar que os ficheiros sao escritos por ordem correta (tenho que garantir que as linhas sao escritas pela ordem certa no ficheiro, apesar de poderem ser escritas por varios processos */
@@ -37,6 +34,28 @@ char backup_path[MAX_PATH]; /* vai conter o caminho da pasta de backups quando o
 char metadata_path[MAX_PATH]; /* vai conter o caminho da pasta de metadata quando o programa inicia */ 
 char data_path[MAX_PATH]; /* vai conter o caminho da pasta de dados quando o programa inicia */
 char fifo_path[MAX_PATH];
+
+int delete(char * filename){
+	char path_link_metadata[MAX_PATH];
+	char ficheiroPath[MAX_PATH]; /* caminho do ficheiro que guarda o path original do ficheiro */
+
+	/* local na metadata */
+	strcpy(path_link_metadata, metadata_path);	
+	strcat(path_link_metadata, filename);
+
+	/* se nao foi feito um backup do ficheiro que se pretende restaurar, nao se pode restaurar o ficheiro */
+	if(access(path_link_metadata, F_OK) == -1)
+		return -1;
+	
+	/* ficheiro que contem caminho original do ficheiro a guardar */	
+	strcpy(ficheiroPath, metadata_path);	
+	strcat(ficheiroPath, PATH_FILE_INDICATOR);
+	strcat(ficheiroPath, filename);
+	
+	if(unlink(ficheiroPath) == -1 || unlink(path_link_metadata) == -1)
+		return -1;
+	return 0;
+}
 
 char * sha1sum(char * filename){
 	int pipefd[2];
@@ -116,7 +135,7 @@ int backup(char * file){
 
 	/* ficheiro que ira conter caminho original do ficheiro a guardar */	
 	strcpy(ficheiroPath, metadata_path);	
-	strcat(ficheiroPath, ".");
+	strcat(ficheiroPath, PATH_FILE_INDICATOR);
 	strcat(ficheiroPath, nomeFicheiro);
 	
 	/* se ja houver um ficheiro diferente com o mesmo nome, nao podemos fazer backup sem ambiguidade. nao guardamos o ultimo ficheiro */
@@ -156,7 +175,7 @@ int restore(char * filename){
 	
 	/* ficheiro que contem caminho original do ficheiro a guardar */	
 	strcpy(ficheiroPath, metadata_path);	
-	strcat(ficheiroPath, ".");
+	strcat(ficheiroPath, PATH_FILE_INDICATOR);
 	strcat(ficheiroPath, filename);
 	
 	fd = open(ficheiroPath, O_RDONLY);
@@ -168,14 +187,30 @@ int restore(char * filename){
 	caminho_backup[r] = 0;
 	zipFile(caminho_backup, caminhoFicheiroARestaurar, UNZIP);
 	
-	
 	return 0;
+}
+
+
+/* nao pode ser feito em simultaneo com mais nenhum processo */
+int gc(){
+	/* passos:
+	   - guardo numa estrutura o conteudo do Backup/data obtido atraves do find (uma string por entrada num array? -> ver tamanho com o numero de fihceiros na pasta
+	   - obtenho a lista de ficheiros da Backup/metadata excepto os que começam com o indicar de ficheiro de path
+           - percorro essa estrutura e com o readlink calculo o path e verifico se está na 1a estrutura, se estiver ponho a null
+	   - quando a acabar, percorro a estrutura inicial e apago todos os ficheiros que nao estao a null
+	 -> no relatorio, justificar que nao causa conflitos porque os comandos invocam primeiro o criador de links
+	 -> integrity check?? para todos os links na pasta, verificar se existe um backup dele e se nao existir, fazer backup ( podem dar varios backups ao mesmo tempo 
+	*/
+	if(!fork()){
+		execlp("", "sha1sum", filename, NULL);	
+
 }
 
 int execComando(Comando cmd){
 	char codigo_comando = get_codigoComando(cmd);
 	int ret = -1;
 	char * file;
+	/* por aqui file = get... */
 	switch(codigo_comando){
 		case 'b': file = get_filepath(cmd);
 		 	  ret = backup(file);
@@ -184,6 +219,10 @@ int execComando(Comando cmd){
 		case 'r': file = get_filepath(cmd);
 		 	  ret = restore(file);
 			  free(file); 	
+			  break;
+		case 'd': file = get_filepath(cmd);
+			  ret = delete(file);
+			  free(file);
 			  break;
 	}
 	return ret;
@@ -263,10 +302,3 @@ int main(){
 	}	
 	_exit(0);
 }
-
-
-/* fazer syshandlers */
-/* void sigHandler(int signal){
-	if(signal == SIGCHLD)
-}*/
-/* criar comandos que abrem e fecham o fifo no cliente que devem enviar ao inicio e fim */
