@@ -55,7 +55,6 @@ int main(int argc, char* argv[]){
 
 		for(i = 2; i < argc; ++i){
 			full_path = realpath(argv[i], NULL);
-			puts(full_path);
 			if(full_path == NULL)
 				perror(argv[i]);
 			else if(is_file(full_path))
@@ -110,7 +109,7 @@ char get_cmd_abbrev(int argc, char* argv[]){
 			r = '\0';
 		}
 		
-		if(r != '\0' && argc < 3){ /* o comando existe mas precisa de argumentos */
+		if(r != '\0' && argc < 3){ /* o comando existe mas faltam argumentos */
 			fprintf(stderr, "O comando '%s' precisa de pelo menos um argumento.\n", argv[1]);
 			r = '\0';
 		}
