@@ -370,7 +370,51 @@ Chegando ao \texttt{switch}, o processo pai faz \texttt{fork()} e o processo fil
 
 \subsubsection{Backup de diretorias}
 
-Sempre que num comando de \emph{backup} um caminho absoluto remete para uma diretoria, executamos o programa \texttt{find}para obter os caminhos de todos os ficheiros que  enviamos um comando de \texttt{backup} através da invocação a função \texttt{send\_cmd()}, definida do seguinte modo:
+Sempre que num comando de \emph{backup} um caminho absoluto remete para uma diretoria, executamos o programa \texttt{find}para obter os caminhos de cada ums dos ficheiros contidos nas subdiretorias da diretorias indicada e invocamos \texttt{send\_cmd()} com cada um dos ficheiros obtidos.
+
+Como uma execução do programa \texttt{find} pode produzir uma grande quantidade de linhas, o grupo optou por definir a seguinte função:
+
+	\begin{verbatim}
+	int find(const char* path){
+		pid_t p;
+		int pipefd[2];
+		int out_fd, status;
+
+		if(pipe(pipefd) == -1)
+			return -1;
+
+		p = fork();
+		if(p == 0){ /* filho */
+			close(pipefd[0]);
+			if(dup2(pipefd[1], 1) == -1)
+				_exit(1);
+			else
+				close(pipefd[1]);
+
+			execlp("find", "find", path, NULL);
+			_exit(1);
+		}
+		else if(p == -1){
+			close(pipefd[0]); close(pipefd[1]); out_fd = -1;
+		}
+		else{ /* pai */
+			close(pipefd[1]);
+			p = wait(&status);
+			if(p != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0)
+				out_fd = pipefd[0];
+			else{ /* algo correu mal no processo filho */
+				close(pipefd[0]);
+				out_fd = -1;
+			}
+		}
+		return out_fd;
+	}
+	\end{verbatim}
+Tal como pode ser observado, o processo que invoca a função \texttt{find()} cria um pipe anónimo e faz \texttt{fork()}. Se o \texttt{fork()} tiver sucesso, o processo filho fecha o descritor de leitura do \emph{pipe} e redireciona o \texttt{standar output} para a ponta de escrita do \emph{pipe}. Uma vez feito este redirecionamento, o processo filho invoca a \emph{system call} \texttt{execl()} para executar a função \texttt{find} com o \emph{path} passado. Já o processo pai fecha a ponta de escrita do \emph{pipe} e espera pelo filho. Se o filho tiver terminado a sua execução com sucesso, o processo pai guarda em \texttt{out\_fd} o descritor de leitura do \emph{pipe} e devolve-o para a função chamadora, para que seja possível obter cada uma das linhas produzidas por \texttt{find}.
+
+Para que a leitura de cada uma das linhas produzidas pela função \texttt{find} seja eficiente, optamos por usar a função \texttt{int readln(struct buffer_t *bufer, void **buf)} baseada no exercício 7. do guião 1. Nesta versão de \texttt{readln()}, cada invocação de \texttt{read} lê até 4096 bytes para um \emph{buffer} interno a \texttt{struct buffer\_t} e em cada chamada de \texttt{readln()} é escrita uma linha no buffer apontado por \texttt{buf}.
+
+Como o programa \texttt{find} também pode incluir diretorias no seu resultado, testamos para cada linha lida, se esta é um ficheiro com a função \texttt{is\_file} (já apresentada acima) e se for, invocamos \texttt{send\_cmd()} para que o servidor faça \emph{backup} do ficheiro encontrado na diretoria de que estamos a fazer \emph{backup} ou nas suas subdiretorias. 
 
 	
 
