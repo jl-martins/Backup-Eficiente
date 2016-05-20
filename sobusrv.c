@@ -220,11 +220,12 @@ int backup(char * file){
 
 /* Neste caso, filename já não é o caminho absoluto mas sim apenas o nome*/
 int restore(char * filename){
-	int fd, r;
+	int fd, r, i, fork_result;
 	char path_link_metadata[MAX_PATH];
 	char caminho_backup[MAX_PATH];
 	char ficheiroPath[MAX_PATH]; /* caminho do ficheiro que guarda o path original do ficheiro */
 	char caminhoFicheiroARestaurar[MAX_PATH];
+	char path[MAX_PATH]; /* caminho do ficheir
 
 	/* local na metadata */
 	strcpy(path_link_metadata, metadata_path);	
@@ -246,6 +247,27 @@ int restore(char * filename){
 	if(r == -1)
 		return -1;
 	caminhoFicheiroARestaurar[r] = '\0';
+	strcpy(path, caminhoFicheiroARestaurar);
+	for(i = strlen(caminhoFicheiroARestaurar); 1; i--){
+		if(path[i] == '/'){
+			path[i] = '\0';
+			break;
+		}
+	}	
+	logServer(path);
+	fork_result = fork();
+	if(fork_result == -1){
+		return -1;
+	}
+	if(!fork_result){
+		execlp("mkdir", "mkdir", "-p", path, NULL);
+		_exit(-1);
+	} else {
+		wait(&i);
+		if(i == -1)
+			return -1;
+	}
+
 	r = readlink(path_link_metadata, caminho_backup, MAX_PATH);
 	if(r == -1)
 		return -1;
