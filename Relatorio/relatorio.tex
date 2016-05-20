@@ -1,0 +1,158 @@
+%Preâmbulo
+\documentclass[a4paper,12pt,titlepage,portuguese]{article}
+
+\usepackage[portuguese]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref,textgreek}
+
+\makeatletter
+  \newcommand{\nop}[1]{\Hy@raisedlink{\hypertarget{#1}{}}}
+\makeatother
+
+\title{Relatório do Trabalho Prático de Sistemas Operativos\\[1cm]\large{\textbf{Backup-Eficiente}}\\\large{2015/2016-MIEI}}
+
+\author{João Martins (A68646) \\João Pereira (A75273)}
+
+\date{\today}
+%Fim do Preâmbulo
+\begin{document}
+
+\pagenumbering{Alph}
+\maketitle
+
+\begin{abstract}
+\pagenumbering{gobble}
+O trabalho desenvolvido consiste num sistema de cópias de segurança de ficheiros escrito em \texttt{C}, que segue uma arquitetura cliente/servidor e suporta operações de \emph{backup} e restauro de ficheiros, bem como de remoção de ficheiros de cópia de segurança e \emph{garbage collection}. Todas as operações são executadas num programa servidor, a pedido de um ou mais programas cliente que poderão estar a executar em simultâneo, desde que estejam na mesma conta de utilizador que o servidor. Cada instância do programa cliente (\texttt{sobucli}) envia um comando para o servidor (\texttt{sobusrv}) através de um fifo (\emph{named pipe}) situado na raiz do backup. O sucesso/insucesso a executar um pedido de um cliente é indicado pelo servidor através dos sinais \texttt{SIGUSR1} (sucesso) e \texttt{SIGUSR2} (insucesso).
+
+\end{abstract}
+
+\pagenumbering{roman}
+\tableofcontents
+
+\newpage
+
+\pagenumbering{arabic}
+
+\section{Configuração}
+
+\subsection{Instruções}
+
+\subsubsection{Instalação}
+
+Para instalar o sistema de cópias de segurança:
+	\begin{enumerate}
+		\item Descomprimir o ficheiro \texttt{SO\_Grupo3.zip};
+		\item Invocar o comando \texttt{make install} e introduzir as credenciais do \emph{superuser} quando pedidas;
+	\end{enumerate}
+\textbf{Nota:} é necessário introduzir as credenciais do \emph{superuser} para mover os executáveis para a diretoria \texttt{/usr/bin}, permitindo assim que seja possível invocar \texttt{sobucli} e \texttt{sobusrv} sem especificar o caminho absoluto dos executáveis.
+
+\subsubsection{Desinstalação}
+
+Para desinstalar o sistema de cópias de segurança:
+	\begin{enumerate}
+		\item Invocar o comando \texttt{make unninstall} na diretoria que tem a \texttt{Makefile} do projeto e introduzir as credenciais do \emph{superuser} quando pedidas;
+		\item Optar por apagar ou não apagar os dados dos \emph{backups} antigos quando questionado;
+	\end{enumerate}
+\textbf{Nota:} as credenciais de \emph{superuser} são necessárias apenas para remover \texttt{sobucli} e \texttt{sobusrv} da diretoria \texttt{/usr/bin}.
+
+\newpage
+
+\subsection{Makefile e scripts}
+
+\subsubsection{Makefile}
+Apresenta-se a \texttt{Makefile} utilizada pelo grupo para gerar os executáveis, invocar os scripts de instalação/desinstalação (\texttt{make install} e \texttt{make unninstall}, respetivamente) e gerar o relatório \\(\texttt{make relatorio}):
+	\begin{verbatim}
+	CFLAGS = -Wall -Wextra -O2
+	TARGET_ARCH = -march=native
+
+	all: sobucli sobusrv
+
+	.PHONY: all install unninstall relatorio clean
+
+	install: all
+		bash install.sh
+
+	unninstall:
+		bash unninstall.sh
+
+	relatorio:
+		cd Relatorio; pdflatex relatorio.tex
+
+	debug: CFLAGS = -Wall -Wextra -g
+	debug: all
+
+	sobucli: sobucli.o readln.o comando.o comando.h
+		$(LINK.c) $^ $(OUTPUT_OPTION)
+
+	sobusrv: sobusrv.o comando.o
+		$(LINK.c) $^ $(OUTPUT_OPTION)
+
+	clean:
+		$(RM) sobucli sobusrv
+		$(RM) *.o
+		$(RM) Relatorio/relatorio.{aux,log,out,toc}
+	\end{verbatim}
+
+\newpage
+\subsubsection{install.sh}
+O \emph{script} de instalação \texttt{install.sh}:
+	\begin{enumerate}
+		\item Cria a diretoria \texttt{\$HOME/.Backup/} (raiz do \emph{backup});
+		\item Cria as pastas \texttt{data} e \texttt{metadata} na raiz do \emph{backup};
+		\item Invoca \texttt{mkfifo} para criar , na raiz do \emph{backup}, o \texttt{fifo} o utilizado para os clientes enviarem comandos ao servidor as pastas \texttt{data} e \texttt{metadata};
+		\item Move os executáveis \texttt{sobucli} e \texttt{sobusrv} para a diretoria \texttt{/usr/bin};
+	\end{enumerate}
+\textbf{Nota:} se algumas das pastas/ficheiros a criar já existir, a instalação prossegue sem causar quaisquer problemas. 
+
+Código de \texttt{install.sh}:
+	\begin{verbatim}
+	mkdir -p $HOME/.Backup/data
+	mkdir -p $HOME/.Backup/metadata
+	if [ ! -f "$HOME fifo" ]; then
+		mkfifo $HOME/.Backup/fifo -m 0666
+	fi
+	sudo mv -t /usr/bin sobucli sobusrv
+	\end{verbatim}
+
+\subsubsection{unninstall.sh}
+O script de desinstalação:
+	\begin{enumerate}
+		\item Remove o \emph{log} de erros de \texttt{sobusrv};
+		\item Remove \texttt{sobucli} e \texttt{sobusrv} de \texttt{/usr/bin};
+		\item Pergunta ao utilizador se pretende remover os dados dos seus \emph{backups} e, caso o utilizador pretenda fazê-lo, remove a pasta \texttt{\$HOME/.Backup} e todos os seus conteúdos;
+	\end{enumerate}
+
+Código de \texttt{unninstall.sh}:
+	\begin{verbatim}
+	rm -f  $HOME/.Backup/fifo $HOME/.Backup/log.txt
+
+	sudo rm -f  /usr/bin/sobucli /usr/bin/sobusrv 
+	echo "Deseja apagar os dados de backups antigos?"
+	select sn in "Sim" "Nao"; do
+	    case $sn in
+	        Sim ) rm -rf $HOME/.Backup; break;;
+	        Nao ) exit;;
+	    esac
+	done
+	\end{verbatim}
+
+\section{Estruturação da raiz do backup}
+
+\section{Comandos}
+
+O grupo implementou os seguintes comandos:
+
+	\begin{itemize}
+		\item \texttt{backup} para realizar \emph{backup} de um ficheiro ou de uma diretoria;
+		\item \texttt{restore} para restaurar ficheiros para o seu local original;
+		\item \texttt{delete} para remover um ficheiro da cópia de segurança;
+		\item \texttt{gc} para eliminar todos os ficheiros da diretoria \texttt{/data} que não estejam a ser utilizados por nenhuma das entradas em \texttt{/metadata};
+		\item \texttt{frestore} (\emph{folder restore}) para restaurar uma diretoria;
+	\end{itemize}
+
+\subsection
+
+\section{Conclusão}
+
+\end{document}

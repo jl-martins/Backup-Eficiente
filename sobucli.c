@@ -78,7 +78,7 @@ int main(int argc, char* argv[]){
 		;
 
 	close(fifo_fd);
-	_exit(0); /* we only reach this point if no errors occurred */
+	_exit(0); /* so chegamos aqui quando nao houve erros */
 }
 
 /* 
@@ -143,15 +143,15 @@ void sighandler(int sig){
 			break;
 		case SIGUSR2: /* erro */
 			if(cmd_abbrev == 'b')
-				fprintf(stderr, "[ERROR] Falha a copiar '%s'\n", last_file);
+				fprintf(stderr, "[ERRO] Falha a copiar '%s'\n", last_file);
 			else if(strchr("rf", cmd_abbrev))
-				fprintf(stderr, "[ERROR] Falha a recuperar '%s'\n", last_file);
+				fprintf(stderr, "[ERRO] Falha a recuperar '%s'\n", last_file);
 			else if(cmd_abbrev == 'd')
-				fprintf(stderr, "[ERROR] Falha a apagar '%s'\n", last_file);
+				fprintf(stderr, "[ERRO] Falha a apagar '%s'\n", last_file);
 			else if(cmd_abbrev == 'g')
-				fputs("[ERROR] O comando 'gc' falhou", stderr);
+				fputs("[ERRO] O comando 'gc' falhou", stderr);
 			else
-				fputs("[ERROR] Nao devia estar aqui.\n", stderr);
+				fputs("[ERRO] Nao devia estar aqui.\n", stderr);
 
 			_exit(1);
 			break;

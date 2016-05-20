@@ -1,4 +1,4 @@
-rm  $HOME/.Backup/fifo $HOME/.Backup/log.txt
+rm -f  $HOME/.Backup/fifo $HOME/.Backup/log.txt
 
 sudo rm -f  /usr/bin/sobucli /usr/bin/sobusrv 
 echo "Deseja apagar os dados de backups antigos?"
