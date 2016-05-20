@@ -26,6 +26,9 @@ int restore(char * filename);
 int execComando(Comando cmd);
 void setupComando(int fifo);
 void logServer(char * msg);
+int frestore(char * path);
+int gc();
+int temLink(char * file);
 
 /* Todo:
  * relatorio - por no inicio que restriçoes é que consideramos: a frestore tem de serpassada com acminho absoluto para permitir que se possam restaurar 2 pastas iguais e quando se executam 2 comandos sobre o mesmo ficheiro em simultaneo, um deles pode falhar. Se nao falhar, a ordem de execucao dos comandos é indefinida.
@@ -33,7 +36,6 @@ void logServer(char * msg);
  * - ficheiro de log (escrever no servidor)
  * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto - fazer testes(unitarios) para o zipFile e outras funçoes
  * - por frestore no cliente- se nao der para fazer o frestore, apaga-se as referencias a ele no cliente, 
- se nao fizer gc, alterar a execCmd de acordo(por o file fora do switch 
  * verificar todo o codigo e ver retorno de syscalls
  * comentar tudo 
 */ 
@@ -61,7 +63,7 @@ int delete(char * filename){
 
 	/* se nao foi feito um backup do ficheiro que se pretende restaurar, nao se pode restaurar o ficheiro */
 	if(access(path_link_metadata, F_OK) == -1)
-		return -1;
+		return 0;
 	
 	/* Poe em ficheiroPath o caminho do ficheiro que contem o caminho original do ficheiro guardado */	
 	strcpy(ficheiroPath, metadata_path);	
@@ -202,6 +204,31 @@ int gc(){
 	return 0;		
 }
 
+int frestore(char * caminhoAbsolutoPasta){
+	DIR * metadata;
+	struct dirent * d;
+	char caminhoFicheiro[MAX_PATH];
+	char conteudoFicheiroPath[MAX_PATH];	
+	int len = strlen(metadata_path);
+	int fd;
+
+	metadata = opendir(metadata_path);
+	strcpy(caminhoFicheiro, metadata_path);
+	while(d = readdir(metadata)){
+		if(d->d_name[0] != PATH_FILE_INDICATOR[0])
+			continue;
+		strcpy(caminhoFicheiro + len, d->d_name);
+		fd = open(caminhoFicheiro, O_RDONLY);
+		if(fd == -1 || read(fd, conteudoFicheiroPath, MAX_PATH) == -1)
+			continue;
+		if(strstr(conteudoFicheiroPath, caminhoAbsolutoPasta) == conteudoFicheiroPath)
+			restore(d->d_name);	
+		close(fd);		
+	}
+	free(metadata);
+	return 0;	
+}
+
 /* Dado o caminho absoluto de um ficheiro, faz backup do mesmo */
 int backup(char * file){
 	char path_sha1_data[MAX_PATH];
@@ -330,6 +357,8 @@ int execComando(Comando cmd){
 			  break;
 		case 'g': ret = gc();
 			  break;
+		case 'f': ret = frestore(file);
+			  break;
 	}
 	free(file);
 	return ret;
@@ -415,7 +444,8 @@ int main(){
 			_exit(0);
 		}
 	}
-			
+	
+	/* so o processo pai é que chega aqui */			
 	while(wait(NULL)){
 		fork_result = fork();
 		if(fork_result == -1)

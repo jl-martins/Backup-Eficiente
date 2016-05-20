@@ -1,0 +1,56 @@
+\section{sobusrv}
+\subsection{Utilização}
+O servidor é iniciado fazendo apenas \texttt{sobusrv} numa shell. Este comando ignora quaisquer flags e argumentos passados e fica a correr em segundo plano, à 
+espera que um cliente lhe envie comandos.
+\subsection{Implementação}
+%\subsubsection{main}
+Quando o servidor é iniciado, é feita a inicialiazção das variáveis com os caminhos de ficheiros que serão utilizados em todo o programa:
+\begin{enumerate}
+\item backup_path - \$HOME/.Backup/
+\item metadata_path -  \$HOME/.Backup/metadata/
+\item data_path - \$HOME/.Backup/data/   
+\item fifo_path - \$HOME/.Backup/fifo
+\item logfile_path - \$HOME/.Backup/log.txt
+\end{enumerate}
+	
+Imediatamente a seguir, é aberto o ficheiro \texttt{log.txt} para guardar o log das operações realizadas pelo servidor. Este ficheiro vai estar aberto para todos os 
+subprocessos do processo inicial, de forma a que todos eles possam registar a operação que executam. 
+
+Para podermos "desocupar" a shell, i.e. executar o processo em 
+background, faz-se um fork em que o pai termina e o filho continua a executar. O programa executa ainda mais um fork em que o filho abre a ponta de escrita 
+do fifo que se encontra na raíz do backup e depois invoca o pause, de forma a ficar adormecido.  
+Se não fizessemos este fork, quando todos os processos fechassem a ponta de escrita do write (por ex: quando todos os comandos enviados pelo 
+\texttt{sobucli} terminam), o processo "principal" do \texttt{sobusrv} que gere a crição de outros processos iria entrar em espera ativa porque não ia 
+bloquear nos \texttt{reads} da FIFO, resultando numa performance deplorável. O processo pai continua a execução e cria 5 processos em que cada um lê um 
+comando da FIFO e começa a sua execução através da invocação da função \texttt{setupComand()}. O processo pai fica à espera que os filhos terminem e sempre que algum
+morre, é criado um novo processo que lê um comando da FIFO. Desta forma, asseguramos que, no máximo, temos 5 operações em simultâneo uma vez que só lemos um
+novo comando quando outro termina. 
+
+A função \texttt{setupComando()}, como foi dito anteriormente, lê um comando do FIFO e começa a sua execução. Mais detalhadamente, é lida uma estrutura 
+Comando do FIFO e se a leitura tiver sido bem sucedida, é executado o comando nela guardado através da função \texttt{execComando()}. Finda a execução do comando,
+é enviado para o processo cliente que escreveu o Comando na FIFO um sinal SIGUSR1 se o comando tiver sido executado com sucesso e SIGUSR2 se tiver havido algum
+erro.
+
+A função \texttt{execComando()} serve unicamente para invocar a operação correta(\texttt{backup()}, \texttt{restore()}, \texttt{gc()} ou \texttt{delete()})
+com os argumentos necessários, se for o caso.
+
+As operações suportadas estão implementadas da seguinte maneira:
+%falar do sha1sum
+\subsubsection{backup(char * filepath)}
+Dado um caminho absoluto de um ficheiro, calculamos o \texttt{sha1sum} e inserimos o um \texttt{symlink} com o nome do ficheiro a guardar e que aponta
+para \texttt{data/sum.gz}, em que \texttt{sum} é o resultado da função \texttt{sha1sum}. Se já existir um \texttt{symlink} com esse nome na \texttt{data},
+o programa termina: definimos que para esses casos vamos manter o 1º ficheiro guardado. Caso contrário, escrevemos num ficheiro cujo nome é o nome do ficheiro a 
+guardar iniciado por um caracter não-imprimível(de forma a evitar colisões de nomes). Esse ficheiro contém o path completo para 
+
+ verificamos na pasta \texttt{data} se o ficheiro já foi guardado;
+
+\subsubsection{restore(char * filename)}
+
+\subsubsection{delete(char * filename)}
+
+\subsubsection{gc()}
+
+\subsection{frestore(char * absolute_path_folder)}
+%Indicar que nao está a funcionar
+
+%explicar funções auxiliares
