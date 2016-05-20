@@ -7,6 +7,8 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include "comando.h"
 #define TAMANHO_SHA1SUM 40 
@@ -27,9 +29,7 @@ void logServer(char * msg);
 
 /* Todo:
  * relatorio - por no inicio que restriçoes é que consideramos: a frestore tem de serpassada com acminho absoluto para permitir que se possam restaurar 2 pastas iguais e quando se executam 2 comandos sobre o mesmo ficheiro em simultaneo, um deles pode falhar. Se nao falhar, a ordem de execucao dos comandos é indefinida.
-   - backup recursivo das pastas no cliente
    - restore recursivo dos clientes
- * - gc em paralelo 
  * - ficheiro de log (escrever no servidor)
  * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto - fazer testes(unitarios) para o zipFile e outras funçoes
  * - por frestore no cliente- se nao der para fazer o frestore, apaga-se as referencias a ele no cliente, 
@@ -163,6 +163,45 @@ void zipFile(char * filepath, char * newFile, int opcao){
 	}	
 }
 
+int temLink(char * name){
+	char ficheiro[MAX_PATH];
+	char caminho_link[MAX_PATH];
+	DIR * metadata = opendir(metadata_path);
+	struct dirent * d;
+	int len = strlen(metadata_path);
+	int k;
+	strcpy(ficheiro, metadata_path);
+	while(d = readdir(metadata)){
+		if(d->d_name[0] == PATH_FILE_INDICATOR[0])
+			continue;
+		strcpy(ficheiro+len, d->d_name);
+		k = readlink(ficheiro, caminho_link, MAX_PATH);
+		if(k == -1)
+			continue;
+		caminho_link[k] = '\0';
+		if(!strcmp(caminho_link, name))
+			return 1;
+	}
+	free(metadata);
+	return 0;
+}
+
+/* Nao pode ser usado ao mesmo tempo que um backup e delete */
+int gc(){
+	char ficheiro[MAX_PATH];
+	DIR * data = opendir(data_path);
+	struct dirent * d;
+	int len = strlen(data_path);
+	strcpy(ficheiro, data_path);
+	while(d = readdir(data)){
+		strcpy(ficheiro+len, d->d_name);
+		if(!temLink(ficheiro))
+			unlink(ficheiro);	
+	}
+	free(data);
+	return 0;		
+}
+
 /* Dado o caminho absoluto de um ficheiro, faz backup do mesmo */
 int backup(char * file){
 	char path_sha1_data[MAX_PATH];
@@ -225,7 +264,7 @@ int restore(char * filename){
 	char caminho_backup[MAX_PATH];
 	char ficheiroPath[MAX_PATH]; /* caminho do ficheiro que guarda o path original do ficheiro */
 	char caminhoFicheiroARestaurar[MAX_PATH];
-	char path[MAX_PATH]; /* caminho do ficheir
+	char path[MAX_PATH]; /* caminho do ficheir*/
 
 	/* local na metadata */
 	strcpy(path_link_metadata, metadata_path);	
@@ -288,6 +327,8 @@ int execComando(Comando cmd){
 		case 'r': ret = restore(file);
 			  break;
 		case 'd': ret = delete(file);
+			  break;
+		case 'g': ret = gc();
 			  break;
 	}
 	free(file);
