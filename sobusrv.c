@@ -191,8 +191,7 @@ int restore(char * filename){
 }
 
 
-/* nao pode ser feito em simultaneo com mais nenhum processo */
-int gc(){
+/*GC nao pode ser feito em simultaneo com mais nenhum processo */
 	/* passos:
 	   - guardo numa estrutura o conteudo do Backup/data obtido atraves do find (uma string por entrada num array? -> ver tamanho com o numero de fihceiros na pasta
 	   - obtenho a lista de ficheiros da Backup/metadata excepto os que começam com o indicar de ficheiro de path
@@ -201,10 +200,7 @@ int gc(){
 	 -> no relatorio, justificar que nao causa conflitos porque os comandos invocam primeiro o criador de links
 	 -> integrity check?? para todos os links na pasta, verificar se existe um backup dele e se nao existir, fazer backup ( podem dar varios backups ao mesmo tempo 
 	*/
-	if(!fork()){
-		execlp("", "sha1sum", filename, NULL);	
 
-}
 
 int execComando(Comando cmd){
 	char codigo_comando = get_codigoComando(cmd);
