@@ -31,11 +31,8 @@ int gc();
 int temLink(char * file);
 
 /* Todo:
- * relatorio - por no inicio que restriçoes é que consideramos: a frestore tem de serpassada com acminho absoluto para permitir que se possam restaurar 2 pastas iguais e quando se executam 2 comandos sobre o mesmo ficheiro em simultaneo, um deles pode falhar. Se nao falhar, a ordem de execucao dos comandos é indefinida.
-   - restore recursivo dos clientes
  * - ficheiro de log (escrever no servidor)
- * - fazer testes para explicarmos ao stor como é que sabemos que o programa esta correto - fazer testes(unitarios) para o zipFile e outras funçoes
- * - por frestore no cliente- se nao der para fazer o frestore, apaga-se as referencias a ele no cliente, 
+ * - tirar os warnings
  * verificar todo o codigo e ver retorno de syscalls
  * comentar tudo 
 */ 
@@ -222,7 +219,7 @@ int frestore(char * caminhoAbsolutoPasta){
 		if(fd == -1 || read(fd, conteudoFicheiroPath, MAX_PATH) == -1)
 			continue;
 		if(strstr(conteudoFicheiroPath, caminhoAbsolutoPasta) == conteudoFicheiroPath)
-			restore(d->d_name);	
+			restore(d->d_name+1);	
 		close(fd);		
 	}
 	free(metadata);
@@ -263,9 +260,8 @@ int backup(char * file){
 	strcat(ficheiroPath, nomeFicheiro);
 	
 	/* se ja houver um ficheiro diferente com o mesmo nome, nao podemos fazer backup sem ambiguidade. nao guardamos o ultimo ficheiro */
-	if(symlink(path_sha1_data, path_link_metadata) == -1) /* substituir por if(access(path_link_metadata, F_OK) != -1) ??? */
+	if(symlink(path_sha1_data, path_link_metadata) == -1) 
 		return -1; 
-	/* fazer free(sha1) se return -1 */
 	if((fd = open(ficheiroPath, O_CREAT | O_WRONLY, 0666)) == -1)
 		return -1;
 	if(write(fd, file, strlen(file)) == -1)
