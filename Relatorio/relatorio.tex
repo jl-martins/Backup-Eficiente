@@ -1,5 +1,5 @@
 %Preâmbulo
-\documentclass[a4paper,12pt,titlepage,portuguese]{article}
+\documentclass[a4paper,12pt,titlepage,draft,portuguese]{article}
 
 \usepackage[portuguese]{babel}
 \usepackage[utf8]{inputenc}
@@ -23,7 +23,7 @@
 
 \begin{abstract}
 \pagenumbering{gobble}
-O trabalho desenvolvido consiste num sistema de cópias de segurança de ficheiros escrito em \texttt{C}, que segue uma arquitetura cliente/servidor e suporta operações de \emph{backup} e restauro de ficheiros, bem como de remoção de ficheiros de cópia de segurança e \emph{garbage collection}. Todas as operações são executadas num programa servidor, a pedido de um ou mais programas cliente que poderão estar a executar em simultâneo, desde que estejam na mesma conta de utilizador que o servidor. Cada instância do programa cliente (\texttt{sobucli}) envia um comando para o servidor (\texttt{sobusrv}) através de um fifo (\emph{named pipe}) situado na raiz do backup. O sucesso/insucesso a executar um pedido de um cliente é indicado pelo servidor através dos sinais \texttt{SIGUSR1} (sucesso) e \texttt{SIGUSR2} (insucesso).
+O trabalho desenvolvido consiste num sistema de cópias de segurança de ficheiros escrito em \texttt{C}, que segue uma arquitetura cliente/servidor e suporta operações de \emph{backup} e restauro de ficheiros\/diretorias, bem como de remoção de ficheiros de cópia de segurança e \emph{garbage collection}. Todas as operações são executadas num programa servidor, a pedido de um ou mais programas cliente que poderão estar a executar em simultâneo, desde que estejam na mesma conta de utilizador que o servidor. Cada instância do programa cliente (\texttt{sobucli}) envia um comando para o servidor (\texttt{sobusrv}) através de um fifo (\emph{named pipe}) situado na raiz do backup. O sucesso/insucesso a executar um pedido de um cliente é indicado pelo servidor através dos sinais \texttt{SIGUSR1} (sucesso) e \texttt{SIGUSR2} (insucesso).
 
 \end{abstract}
 
@@ -152,8 +152,8 @@ A diretoria \texttt{/data/}, situada na raiz do \emph{backup}, armazena os fiche
 O programa desenvolvido suporta operações de:
 
 	\begin{itemize}
-		\item \emph{Backup} de ficheiros/diretorias;
-		\item Recuperação de ficheiros;
+		\item \emph{Backup} de ficheiros\/diretorias;
+		\item Recuperação de ficheiros\/diretorias ;
 		\item Remoção de ficheiros de cópia de segurança;
 		\item \emph{Garbage collection}, i.e.: remoção de todos os ficheiros da pasta \texttt{/data} que não têm qualquer link simbólico da pasta \texttt{/metadata} que os referencie;
 	\end{itemize}
@@ -170,19 +170,68 @@ Na invocação do comando \texttt{sobucli restore}, o utilizador deverá introdu
 
 \textbf{Nota:} Os comandos \texttt{sobucli backup} e \texttt{sobucli restore} não deverão ser executados em simultâneo, uma vez que a ordem pela qual chegam ao servidor não é necessáriamente a ordem pela qual são introduzidos e o resultado obtido depende da ordem de execução dos comandos. Assim, se o utilizador optar por executar \texttt{sobucli backup} e \texttt{sobucli restore} em simultâneo, o comportamento é indefinido.
 
+\subsection{frestore}
+
+O comando \texttt{sobucli frestore} (\emph{folder restore}) permite restaurar diretorias. Como várias diretorias diferentes podem ter o mesmo nome, é necessário especificar em cada um dos argumentos de \texttt{sobucli frestore}, o caminho absoluto das diretorias que se pretende restaurar.
+
 \subsection{delete}
 
-O comando \texttt{sobucli delete} recebe uma lista de um ou mais \underline{ficheiros}
+O comando \texttt{sobucli delete} recebe uma lista de um ou mais \underline{ficheiros} e apaga as referências que possam existir em \texttt{metadata\/} para cada um desses ficheiros. Se não existir nenhum \emph{link} para um dado ficheiro passado para o comando \texttt{delete}, consideramos que o objetivo de apagar esse ficheiro é trivialmente cumprido, pelo que se considera que \texttt{delete} teve sucesso.
 
-\section{struct command}
+\subsection{garbace collector (gc)}
 
-De forma a agrupar numa única estrutura os vários dados que o servidor necessita para executar um determinado comando, o grupo optou por definir a \texttt{struct command}, permitindo assim que a informação de cada comando enviado para servidor tenha um número fixo de bytes (dado por \texttt{sizeof(struct command)}), facilitando o acesso à mesma. 
+O comando \texttt{sobucli gc} não recebe quaisquer argumentos e é responsável por eliminar todos os ficheiros da diretoria \texttt{data\/} que não estão a ser usados por nenhuma entrada em \texttt{\/metadata}. Se o utilizador passar argumentos adicionais para \texttt{sobucli gc}, é impressa uma mensagem de erro a indicar que \texttt{sobucli gc} não recebe quaisquer argumentos.
+
+\section{struct comando}
+
+De forma a agrupar numa única estrutura os vários dados que o servidor necessita para executar um determinado comando, o grupo optou por definir a \texttt{struct command}, permitindo assim que a informação de cada comando enviado para servidor tenha um número fixo de bytes (dado por \texttt{sizeof(struct command)}), o que facilita o acesso à mesma. 
 
 Cada comando que é enviado para \texttt{sobusrv} tem 3 campos:
 
 	\begin{itemize}
 		\item \texttt{pid} do processo que enviou o comando, de forma a que o servidor possa enviar o sinal que indica conclusão de uma operação ou erro ao processo que ficou encarregue por pedir essa operação;
-		\item caminho absoluto, relativo ou um astring 
+		\item Caminho relativo\/absoluto dos ficheiros a utilizar no comando a executar. No caso do comando \texttt{sobucli gc} este campo é uma \emph{String} começada por \'\\0\';
+		\item Abreviatura do comando a realizar (1º caratére do nome do comando); 
+	\end{itemize}
+
+	Segue-se a declaração da \texttt{struct comando}:
+
+	\begin{verbatim}
+	struct comando{
+		pid_t pid;
+		char filepath[MAX_PATH];
+		char codigoComando;
+	};
+	\end{verbatim}
+, onde \texttt{MAX\_PATH} é uma macro definida em \texttt{comando.h} como 2048.
+\textbf{Nota:} \underline{não confundir} a macro \texttt{MAX\_PATH}, definida pelo grupo, com a macro \texttt{PATH\_MAX}, definida em \texttt{Linux} e \texttt{Mac OSX}. \texttt{PATH\_MAX} está definida na maioria dos sistemas operativos \texttt{Linux} como 4096, devido a este ser o tamanho máximo para o qual há garantia que uma invocação da \emph{system call} \texttt{write()} é atómica. A razão para o grupo limitar o tamanho máximo de cada \emph{path} a 2048 caratéres \texttt{ASCII} prende-se com a necessidade de, em cada comando enviado para o servidor, enviarmos informação adicional como o \emph{pid} do processo que enviou o comando e a abreviatura desse comando. Se o tamanho máximo de cada caminho fosse 4096 caratéres, a escrita adicional da abreviatura do comando e do \texttt{pid} do processo que o enviou iriam implicar um \texttt{write} de um número superior a 4096 caratéres, pelo que não teríamos garantias relativamente à atomicidade de cada escrita no \texttt{fifo} usado para comunicar como o servidor. Se as escritas no \texttt{fifo} não fossem atómicas, ao existir mais do que um processo \texttt{sobucli} a escrever no \emph{named pipe}, correríamos o risco de enviar partes de comandos diferentes intercaladas umas com as outras, corrompendo as mensagens que se pretende transmitir.
+
+De forma a abstrair os detalhes de implementação da \texttt{struct comando} e ao mesmo tempo proteger os conteúdos da mesma, o grupo definiu o tipo \texttt{Comando} no ficheiro \texttt{comando.h} da seguinte forma:
+
+	\begin{verbatim}
+	typedef struct comando * Comando;
+	\end{verbatim}
+
+A criação\/destruição de comandos, bem como a obtenção cada um dos campos da \texttt{struct comando} é realizada com as seguintes funções:
+
+	\begin{verbatim}
+	/* Aloca memória para um comando. */
+	Comando aloca_comando();
+	/* 
+	 * Aloca memória para um comando e inicializa-o com o o código de comando
+	 * passado como 1º argumento e com o caminho de ficheiro passado como 2º
+	 * argumento. O pid associado ao comando é o do processo que chama a função.
+	 */
+	Comando aloca_inicializa_comando(char codigoComando, char * caminho_ficheiro);
+	/* Devolve o pid do processo que enviou o comando passado como argumento. */
+	pid_t get_pid_comando(Comando cmd);
+	/* Devolve o caminho do ficheiro associado ao comando passado como argumento. */
+	char * get_filepath(Comando cmd);
+	/* Devolve o código do comando passado como argumento. */
+	char get_codigoComando(Comando cmd);
+	/* Devolve o número de bytes que um comando ocupa em memória. */
+	ssize_t tamanhoComando();
+	\end{verbatim}
 
 \section{sobucli}
 
@@ -206,21 +255,22 @@ Se alguma das condições acima referidas falhar, o programa cliente imprime no 
 
 \subsubsection{Abreviaturas de comandos} \label{Abreviaturas de comandos}
 
-Atentando no facto de todos os comandos implementados começarem com uma inicial diferente, o grupo optou por abreviar cada um dos comandos à sua 1ª letra, tendo para esse fim criado a função \texttt{get_cmd_abbrev}:
+Atentando no facto de todos os comandos implementados começarem com uma inicial diferente, o grupo optou por abreviar cada comando à sua 1ª letra, tendo para esse fim criado a função \texttt{get\_cmd\_abbrev}:
 
 	\begin{verbatim}
 	/* 
- 	 * Valida o comando introduzido com base em argc e argv e, se este for
- 	 * valido, devolve uma abreviatura do mesmo. A abreviatura devolvida
- 	 * nao e mais do que a 1ª letra do comando. Se o comando ou o numero de
- 	 * argumentos forem invalidos, imprime uma mensagem de erro no stderr e 
- 	 * devolve o carater '\0'.
+ 	 * Valida o comando introduzido com base em argc e 
+ 	 * argv e, se este for válido, devolve uma abreviatura 
+ 	 * do mesmo. A abreviatura devolvida nao é mais do que
+ 	 * a 1ª letra do comando. Se o comando ou o número de
+ 	 * argumentos forem inválidos, imprime uma mensagem de erro 
+ 	 * no stderr e  devolve o carater '\0'.
  	 */
 	char get_cmd_abbrev(int argc, char* argv[]);
 	\end{verbatim}
-\texttt{get_cmd_abbrev} realiza cada uma das validações listadas em \ref{Abreviaturas de comandos} e se alguma falhar, apresenta uma mensagem de erro de acordo com a condição que falhou \texttt{stderr} e devolve \'\\0\'. Se nenhuma das validações falhar, é devolvido o primeiro caratére do comando introduzido. 
+\texttt{get\_cmd\_abbrev} realiza cada uma das validações listadas em \ref{Abreviaturas de comandos} e se alguma falhar, apresenta uma mensagem de erro de acordo com a condição que falhou \texttt{stderr} e devolve \'\\0\'. Se nenhuma das validações falhar, é devolvido o primeiro caratére do comando introduzido. 
 
-A utilização de abreviaturas de comandos permite que, sempre que pretendemos testar qual é o comando a ser executado, não tenhamos que invocar a função \texttt{strcmp}.
+A utilização de abreviaturas de comandos permite que sempre que pretendemos testar qual é o comando a ser executado não tenhamos que invocar a função \texttt{strcmp}.
 
 \subsubsection{Variáveis globais ao módulo sobucli}
 
@@ -231,11 +281,11 @@ No início de \texttt{sobucli.c} temos a declaração das seguintes variáveis g
 	static char* last_file = NULL;
 	static int nchild;
 	\end{verbatim}
-\texttt{cmd_abbrev} guarda a abreviatura do comando que está a ser executado, ou \texttt{\'\0\'} se ainda não foi lido um comando válido. Esta variável é global para que no interior do \texttt{sighandler} invocado para tratar \texttt{SIGUSR1} e \texttt{SIGUSR2} tenhamos informação relativamente ao comando que foi executado e possamos imprimir a mensagem de sucesso/erro adequada. 
+\texttt{cmd\_abbrev} guarda a abreviatura do comando que está a ser executado, ou \texttt{\'\\0\'} se ainda não foi lido um comando válido. Esta variável é global para que no interior do \texttt{sighandler} invocado para tratar \texttt{SIGUSR1} e \texttt{SIGUSR2} tenhamos informação relativamente ao comando que foi executado e possamos imprimir a mensagem de sucesso/erro adequada. 
 
-\texttt{last_file} é um apontador para o caminho absoluto/relativo do último ficheiro tratado numa determinada operação. Esta variável também é global para que possa ser acedida \texttt{sighandler} de \texttt{SIGUSR1} e \texttt{SIGUSR2} e possamos imprimir o nome e/ou o caminho do ficheiro utilizado num dado pedido.
+\texttt{last\_file} é um apontador para o caminho absoluto\/relativo do último ficheiro tratado numa determinada operação. Esta variável também é global para que possa ser acedida \texttt{sighandler} de \texttt{SIGUSR1} e \texttt{SIGUSR2} e possamos imprimir o nome e/ou o caminho do ficheiro utilizado num dado pedido.
 
-\texttt{nchild} permite controlar o número de processos filhos criado pelo programa cliente, uma vez que, para cada ficheiro da lista de ficheiros passada nos comandos \texttt{backup}, \texttt{restore} e \texttt{delete}, criamos um processo filho que fica responsável por enviar o seu \texttt{pid}, o comando a executar e o ficheiro/caminho absoluto a usar na operação. Embora não tenha sido imposto um limite ao número de processos filho que uma instância de \texttt{sobucli} poderá criar, o grupo optou por impor um limite de 5 processos filho em cada instante. A forma como o número de processos filho é controlado será apresentada com mais detalhe na secção \ref{Envio de comandos}.
+\texttt{nchild} permite controlar o número de processos filhos criado pelo programa cliente, uma vez que, para cada ficheiro da lista de ficheiros passada nos comandos \texttt{backup}, \texttt{restore} e \texttt{delete}, criamos um processo filho que fica responsável por enviar o seu \texttt{pid}, o comando a executar e o ficheiro\/caminho absoluto a usar na operação. Embora não tenha sido imposto um limite ao número de processos filho que uma instância de \texttt{sobucli} poderá criar, o grupo optou por impor um limite de 5 processos filho em cada instante. A forma como o número de processos filho é controlado será apresentada com mais detalhe na secção \ref{Envio de comandos}.
 
 \subsubsection{Construção do caminho da fifo}
 
@@ -247,19 +297,16 @@ O caminho absoluto do \texttt{fifo} é obtido da seguinte forma:
 		strcat(backup_path, "/.Backup");
 		strcat(backup_path, "/fifo");
 	\end{verbatim}
-, onde \texttt{MAX_PATH} é uma macro definida como 2048.
-\textbf{Nota:} \underline{não confundir} a macro \texttt{MAX_PATH}, definida pelo grupo, com a macro \texttt{PATH_MAX}, definida em \texttt{Linux} e \texttt{Mac OSX}. \texttt{PATH_MAX} está definida na maioria dos sistemas operativos \texttt{Linux} como 4096, devido a este ser o tamanho máximo para o qual há garantia que uma invocação da \emph{system call} \texttt{write()} é atómica. A razão para o grupo limitar o tamanho máximo de cada \emph{path} a 2048 caratéres \texttt{ASCII} prende-se com a necessidade de, em cada comando enviado para o servidor, enviarmos informação adicional como o \emph{pid} do processo que enviou o comando e a abreviatura desse comando. Se o tamanho máximo de cada caminho fosse 4096 caratéres, a escrita adicional da abreviatura do comando e do \texttt{pid} do processo que o enviou iriam implicar um \texttt{write} de um número superior a 4096 caratéres, pelo que não teríamos garantias relativamente à atomicidade de cada escrita no \texttt{fifo} usado para comunicar como o servidor. Ora, se as escritas no \texttt{fifo} não fossem atómicas, ao existir mais do que um processo \texttt{sobucli} a escrever no \texttt{fifo}, correríamos o risco de enviar partes de comandos diferentes intercaladas umas com as outras, corrompendo as mensagens que se pretende transmitir.
 
 \subsubsection{Envio de comandos} \label{Envio de comandos}
 
-O grupo optou por 
-
+Se os argumentos de \texttt{sobucli} fossem enviados numa única linha para \texttt{sobusrv} haveria o risco de o número de bytes enviados exceder o \texttt{PIPE\_BUF} e nesse caso deixaríamos de ter garantias relativamente à atomicidade das escritas, levando a que quando são executadas várias instâncias de \texttt{sobucli} concorrentemente, partes de comandos de diferentes fossem intercaladas umas com as outras. Além disso, quando o servidor responde com \texttt{SIGUSR1} ou \texttt{SIGUSR2} de forma a indicar o sucesso ou insucesso de uma operação também é necessário saber a que operação este se refere e se um único processo enviasse todos os argumentos recebidos por \texttt{sobucli} numa única escrita, dificilmente se saberia a que ficheiro se refere cada um dos sinais recebidos. Assim, de forma a garantir a atomicidade das escritas e ao mesmo tempo ter uma forma de saber a que ficheiro diz respeito cada um dos sinais enviados por \texttt{sobusrv} (nas várias operações que não \texttt{gc}), o grupo optou por, para cada ficheiro dos argumentos de um dado comando, criar um processo filho de \texttt{sobucli} que fica encarregue de enviar o comando e 
 
 \subsubsection{Comandos de backup}
 
 O servidor (\texttt{sobusrv}) necessita de ter conhecimento do caminho absoluto dos ficheiros de que o cliente pretende fazer \emph{backup} para que seja possível restaurá-los para o seu caminho original. Assim, mesmo que o utilizador invoque o comando \texttt{sobucli backup} com um ou mais ficheiros para os quais especifica apenas um caminho relativo à sua \emph{working directory}, o programa \texttt{sobucli} trata de expandir cada um desses caminhos relativos para or respetivo caminho absoluto, através da invocação da função \texttt{realpath}, importada da \texttt{stdlib}. A utilização de \texttt{realpath} permite ainda a realização de verificações adicionais, uma vez que se o utilizador especificar um caminho inválido \texttt{realpath} devolve \texttt{NULL}, permitindo que o cliente apresente uma mensagem de erro e passe para o próximo argumento de \texttt{backup}.
 
-Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um ficheiro passado como argumento para o comando de \texttt{backup}, o grupo testa se o caminho absoluto obtido diz respeito a um ficheiro ou a uma diretoria, recorrendo para isso às funções \texttt{is_file} e \texttt{is_dir}, definidas com o auxílio da \emph{system call} \texttt{stat} da seguinte forma:
+Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um ficheiro passado como argumento para o comando de \texttt{backup}, o grupo testa se o caminho absoluto obtido diz respeito a um ficheiro ou a uma diretoria, recorrendo para isso às funções \texttt{is\_file} e \texttt{is\_dir}, definidas com o auxílio da \emph{system call} \texttt{stat} da seguinte forma:
 
 	\begin{verbatim}
 	int is_file(char* path){
@@ -283,16 +330,11 @@ Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um fichei
 	}
 	\end{verbatim}
 
-Se o caminho absoluto disser respeito a uma diretoria, então basta enviar um comando de \texttt{backup}, invocando a função \texttt{send_cmd}, definida
+Se o caminho absoluto remeter para uma diretoria, então enviamos um comando de \texttt{backup} através da invocação a função \texttt{send\_cmd()}, definida do seguinte modo:
 
+	
 
-	\begin{itemize}
-		\item \texttt{backup} para realizar \emph{backup} de um ficheiro ou de uma diretoria;
-		\item \texttt{restore} para restaurar ficheiros para o seu local original;
-		\item \texttt{delete} para remover um ficheiro da cópia de segurança;
-		\item \texttt{gc} para eliminar todos os ficheiros da diretoria \texttt{/data} que não estejam a ser utilizados por nenhuma das entradas em \texttt{/metadata};
-		\item \texttt{frestore} (\emph{folder restore}) para restaurar uma diretoria;
-	\end{itemize}
+\texttt{arg_path} designa um caminho indicado por um argumento passado para \texttt{sobucli} por um processo filho de \texttt{sobucli} que guarda na sua instância da variável global \texttt{last_file} o caminho absoluto 
 
 \section{Conclusão}
 
