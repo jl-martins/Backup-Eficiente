@@ -12,8 +12,9 @@ Quando o servidor é iniciado, é feita a inicialiazção das variáveis com os 
 \item logfile\_path - \$HOME/.Backup/log.txt
 \end{enumerate}
 	
-Imediatamente a seguir, é aberto o ficheiro \texttt{log.txt} para guardar o log das operações realizadas pelo servidor. Este ficheiro fica aberto para todos os 
-subprocessos do processo inicial, de forma a que todos eles possam registar a operação que executam. 
+Imediatamente a seguir, é aberto o ficheiro \texttt{log.txt} para registar os erros do servidor. O stderr é redirecionado para o log.txt
+através da system call \texttt{dup2}.
+Este redirecionamento funcionará para todos os subprocessos do processo inicial, de forma a que todos eles possam registar os seus erros. 
 
 Para podermos "desocupar" a shell, i.e. executar o processo em 
 background, faz-se um fork em que o pai termina e o filho continua a executar. Posto isto, o programa executa ainda mais um fork em que o filho abre a ponta de escrita 

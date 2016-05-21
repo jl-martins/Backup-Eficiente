@@ -25,7 +25,6 @@ int backup(char * file);
 int restore(char * filename);
 int execComando(Comando cmd);
 void setupComando(int fifo);
-void logServer(char * msg);
 int frestore(char * path);
 int gc();
 int temLink(char * file);
@@ -36,11 +35,6 @@ char data_path[MAX_PATH];     /* pasta de dados */
 char fifo_path[MAX_PATH];     /* caminho do fifo */
 char logfile_path[MAX_PATH];  /* caminho do ficheiro de log */
 int log_fd;                   /* file descriptor do ficheiro de log */
-
-/* Escreve uma mensagem no ficheiro de log */
-void logServer(char * msg){
-	write(log_fd, msg, strlen(msg));
-}
 
 /* Apaga os metadados de um ficheiro. Deve ser passado apenas o nome do ficheiro e nao o path */
 int delete(char * filename){
@@ -61,11 +55,10 @@ int delete(char * filename){
 	strcat(ficheiroPath, filename);
 
 	/* apaga os dois ficheiros criados durante o backup */	
-	if(unlink(ficheiroPath) == -1 || unlink(path_link_metadata) == -1)
+	if(unlink(ficheiroPath) == -1 || unlink(path_link_metadata) == -1){
+		fprintf(stderr, "[ERRO] Backup: nao foi possivel apagar o ficheiro %s\n", filename);
 		return -1;
-	logServer("[DELETE] ");
-	logServer(filename);
-	logServer(": Sucesso\n");
+	}
 	return 0;
 }
 
@@ -89,9 +82,7 @@ char * sha1sum(char * filename){
 
 		if(WEXITSTATUS(exitStatus) != 0 ||
 		   read(pipefd[0], sha1, TAMANHO_SHA1SUM) == -1){
-			logServer("[ERRO] SHA1SUM: ");
-			logServer(filename);
-			logServer("\n");
+			fprintf(stderr, "[ERRO] Sha1sum: Nao foi possivel calcular o sha1sum de %s\n", filename);
 			_exit(-1);
 		}
 
@@ -121,11 +112,7 @@ void zipFile(char * filepath, char * newFile, int opcao){
 	int fork_result;
 
 	if(pipe(pipefd) == -1 || (fork_result = fork()) == -1){
-		logServer("[ERRO] zipFile: ");	
-		logServer(filepath);
-		logServer(" -> ");
-		logServer(newFile);
-		logServer("\n");
+		fprintf(stderr, "[ERRO] zipFile: Não é possível un/zipar %s\n", filepath);
 		_exit(-1);
 	}
 
@@ -141,11 +128,13 @@ void zipFile(char * filepath, char * newFile, int opcao){
 
 		while((lidos = read(pipefd[0], buf, SIZE_READS)) > 0){
 			if(write(fd, buf, lidos) == -1){
+				fprintf(stderr, "[ERRO] zipFile: Não é possível un/zipar %s\n", filepath);
 				_exit(-1);
 			}
 		}
 		if(lidos == -1){
-			logServer("[ERRO] zipFile: erro de escrita\n");
+			fprintf(stderr, "[ERRO] zipFile: Não é possível un/zipar %s\n", filepath);
+			_exit(-1);
 		}
 		close(pipefd[0]);
 	}else{
@@ -169,6 +158,8 @@ int temLink(char * name){
 	struct dirent * d;
 	int len = strlen(metadata_path);
 	int k;
+	if(metadata == NULL)
+		return 1; /* por segurança, quando falha a abertura assume-se que existe um link para o ficheiro */
 	strcpy(ficheiro, metadata_path);
 	while((d = readdir(metadata))){
 		if(d->d_name[0] == PATH_FILE_INDICATOR[0])
@@ -192,6 +183,10 @@ int gc(){
 	struct dirent * d;
 	int len = strlen(data_path);
 	strcpy(ficheiro, data_path);
+	if(data == NULL){
+		fprintf(stderr, "[ERRO] Não foi possível fazer gc\n");
+		return 1;
+	}
 	while((d = readdir(data))){
 		strcpy(ficheiro+len, d->d_name);
 		if(!temLink(ficheiro))
@@ -210,6 +205,9 @@ int frestore(char * caminhoAbsolutoPasta){
 	int fd;
 
 	metadata = opendir(metadata_path);
+	if(metadata == NULL){
+		fprintf(stderr, "[ERRO] frestore: não foi possível fazer frestore de %s\n", caminhoAbsolutoPasta);
+	}
 	strcpy(caminhoFicheiro, metadata_path);
 	while((d = readdir(metadata))){
 		if(d->d_name[0] != PATH_FILE_INDICATOR[0])
@@ -260,23 +258,24 @@ int backup(char * file){
 	strcat(ficheiroPath, nomeFicheiro);
 	
 	/* se ja houver um ficheiro diferente com o mesmo nome, nao podemos fazer backup sem ambiguidade. nao guardamos o ultimo ficheiro */
-	if(symlink(path_sha1_data, path_link_metadata) == -1) 
+	if(symlink(path_sha1_data, path_link_metadata) == -1){
+		fprintf(stderr, "[ERRO] Backup: ambiguidade a guardar %s\n", file);
 		return -1; 
-	if((fd = open(ficheiroPath, O_CREAT | O_WRONLY, 0666)) == -1)
+	}
+	if((fd = open(ficheiroPath, O_CREAT | O_WRONLY, 0666)) == -1){
+		fprintf(stderr, "[ERRO] Backup: erro a guardar %s\n", file);
 		return -1;
-	if(write(fd, file, strlen(file)) == -1)
+	}
+	if(write(fd, file, strlen(file) + 1) == -1){
+		fprintf(stderr, "[ERRO] Backup: erro a guardar %s\n", file);
 		return -1;
-	if(write(fd, "", 1) == -1)
-		return -1;
+	}
 	close(fd);
 
 	if(access(path_sha1_data, F_OK) == -1) // se os dados nao estao guardados 
 		zipFile(file, path_sha1_data, ZIP);	
 		
 	free(sha1);
-	logServer("[BACKUP] ");
-	logServer(file);
-	logServer(": Sucesso\n");
 	return 0;
 }	
 
@@ -294,8 +293,10 @@ int restore(char * filename){
 	strcat(path_link_metadata, filename);
 
 	/* se nao foi feito um backup do ficheiro que se pretende restaurar, nao se pode restaurar o ficheiro */
-	if(access(path_link_metadata, F_OK) == -1)
+	if(access(path_link_metadata, F_OK) == -1){
+		fprintf(stderr, "[ERRO] restore: nao foi feito o backup de %s\n", filename);
 		return -1;
+	}
 	
 	/* ficheiro que contem caminho original do ficheiro a guardar */	
 	strcpy(ficheiroPath, metadata_path);	
@@ -303,11 +304,15 @@ int restore(char * filename){
 	strcat(ficheiroPath, filename);
 	
 	fd = open(ficheiroPath, O_RDONLY);
-	if(fd == -1)
+	if(fd == -1){
+		fprintf(stderr, "[ERRO] restore: erro a restaurar %s\n", filename);
 		return -1;
+	}
 	r = read(fd, caminhoFicheiroARestaurar, MAX_PATH);
-	if(r == -1)
+	if(r == -1){
+		fprintf(stderr, "[ERRO] restore: erro a restaurar %s\n", filename);
 		return -1;
+	}
 	caminhoFicheiroARestaurar[r] = '\0';
 	strcpy(path, caminhoFicheiroARestaurar);
 	for(i = strlen(caminhoFicheiroARestaurar); 1; i--){
@@ -316,7 +321,6 @@ int restore(char * filename){
 			break;
 		}
 	}	
-	logServer(path);
 	fork_result = fork();
 	if(fork_result == -1){
 		return -1;
@@ -326,13 +330,17 @@ int restore(char * filename){
 		_exit(-1);
 	} else {
 		wait(&i);
-		if(i == -1)
+		if(i == -1){
+			fprintf(stderr, "[ERRO] restore: erro a restaurar %s\n", filename);
 			return -1;
+		}
 	}
 
 	r = readlink(path_link_metadata, caminho_backup, MAX_PATH);
-	if(r == -1)
+	if(r == -1){
+		fprintf(stderr, "[ERRO] restore: erro a restaurar %s\n", filename);
 		return -1;
+	}
 	caminho_backup[r] = 0;
 	zipFile(caminho_backup, caminhoFicheiroARestaurar, UNZIP);
 	return 0;
@@ -374,7 +382,7 @@ void setupComando(int fifo){
 	}
 	if(r != tamanhoComando()){
 		free(cmd);	
-		logServer("Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
+		fprintf(stderr, "Erro de leitura do comando. O Servidor vai encerrar!! \nTodos os comandos que nao tenham recebido mensagem de confirmacao deverao ser reintroduzidos\n"); /* uma ma leitura leva a que o conteudo do FIFO fique corrompido */
 		kill(-getppid(), SIGKILL);
 	}
 	r = execComando(cmd);
@@ -409,6 +417,8 @@ int main(){
 	strcpy(logfile_path, backup_path);
 	strcat(logfile_path, "log.txt");
 	log_fd = open(logfile_path, O_CREAT | O_WRONLY | O_APPEND, 0666);
+	if(log_fd == -1 || dup2(log_fd, STDERR_FILENO) == -1)
+		return -1;
 
 	/* termina o programa mas deixa os processos em execução */
 	fork_result = fork();
