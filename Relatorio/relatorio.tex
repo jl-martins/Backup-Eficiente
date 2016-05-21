@@ -160,9 +160,7 @@ O programa desenvolvido suporta operações de:
 
 \subsection{backup}
 
-Ao invocar o comando \texttt{sobucli backup}, o utilizador pode optar especificar tanto caminhos absolutos como caminhos relativos nos ficheiros passados como argumentos para o comando, uma vez que o programa \texttt{sobucli} tem a capacidade de expandir caminhos relativos para caminhos absolutos antes de enviar um comando para o servidor.
-
-\textbf{Nota:} de forma a seguir o esquema de \emph{links} simbólicos apresentado na página 3 do enunciado (antes da secção de \texttt{Valorização}), optamos por atribuir a cada \emph{link} simbólico o nome do ficheiro original a que este diz respeito (sem guardar o caminho absoluto desse ficheiro no nome do \emph{link}). Este tipo de abordagem leva a que não seja possível fazer \emph{backup} de 2 ficheiros que estão em diretorias diferentes e têm o mesmo nome. Uma forma de contornar esta limitação seria guardar no nome de cada \emph{link} o caminho absoluto do ficheiro comprimido para que este aponta. A impossibilidade de utilizar \'/\' no nome do \emph{link} poderia ser contornada substituindo \'/\' por um caratére que possa ser utilizado no nome de ficheiros e que praticamente nunca seja introduzido pela maioria dos utilizadores, como por exemplo o caratére \texttt{Unit Separator} (\texttt{ASCII} 31). Outra solução seria ter em \texttt{/metadata} cada uma das pastas constituintes do caminho dos ficheiros de que se fez \emph{backup} (replicando de certa forma a hierarquia do sistema de ficheiros). A título de exemplo, suponhamos que é pedido o \emph{backup} de 2 ficheiros de nome igual e conteúdo diferente, cujos caminhos são \texttt{/home/user/Desktop/a.pdf} e \texttt{/home/user/Documents/a.pdf}. Na abordagem referida, teríamos em \texttt{/metadata} os caminhos \texttt{/home/joao/Desktop/a.pdf} e \texttt{/home/joao/Documents/a.pdf}, em que o último elemento de cada um desses caminhos é um \emph{link} simbólico para o conteúdo comprimido do respetivo ficheiro original.
+Ao invocar o comando \texttt{sobucli backup}, o utilizador pode optar especificar tanto caminhos absolutos como caminhos relativos nos ficheiros passados como argumentos para o comando, uma vez que o programa \texttt{sobucli} tem a capacidade de expandir caminhos relativos para caminhos absolutos antes de enviar um comando para o servidor.\\\\\textbf{Nota:} de forma a seguir o esquema de \emph{links} simbólicos apresentado na página 3 do enunciado (antes da secção de \texttt{Valorização}), optamos por atribuir a cada \emph{link} simbólico o nome do ficheiro original a que este diz respeito (sem guardar o caminho absoluto desse ficheiro no nome do \emph{link}). Este tipo de abordagem leva a que não seja possível fazer \emph{backup} de 2 ficheiros que estão em diretorias diferentes e têm o mesmo nome. Uma forma de contornar esta limitação seria guardar no nome de cada \emph{link} o caminho absoluto do ficheiro comprimido para que este aponta. A impossibilidade de utilizar \'/\' no nome do \emph{link} poderia ser contornada substituindo \'/\' por um caratére que possa ser utilizado no nome de ficheiros e que praticamente nunca seja introduzido pela maioria dos utilizadores, como por exemplo o caratére \texttt{Unit Separator} (\texttt{ASCII} 31). Outra solução seria ter em \texttt{/metadata} cada uma das pastas constituintes do caminho dos ficheiros de que se fez \emph{backup} (replicando de certa forma a hierarquia do sistema de ficheiros). A título de exemplo, suponhamos que é pedido o \emph{backup} de 2 ficheiros de nome igual e conteúdo diferente, cujos caminhos são \texttt{/home/user/Desktop/a.pdf} e \texttt{/home/user/Documents/a.pdf}. Na abordagem referida, teríamos em \texttt{/metadata} os caminhos \texttt{/home/joao/Desktop/a.pdf} e \texttt{/home/joao/Documents/a.pdf}, em que o último elemento de cada um desses caminhos é um \emph{link} simbólico para o conteúdo comprimido do respetivo ficheiro original.
 
 \subsection{restore}
 
@@ -204,7 +202,7 @@ Cada comando que é enviado para \texttt{sobusrv} tem 3 campos:
 	};
 	\end{verbatim}
 , onde \texttt{MAX\_PATH} é uma macro definida em \texttt{comando.h} como 2048.
-\textbf{Nota:} \underline{não confundir} a macro \texttt{MAX\_PATH}, definida pelo grupo, com a macro \texttt{PATH\_MAX}, definida em \texttt{Linux} e \texttt{Mac OSX}. \texttt{PATH\_MAX} está definida na maioria dos sistemas operativos \texttt{Linux} como 4096, devido a este ser o tamanho máximo para o qual há garantia que uma invocação da \emph{system call} \texttt{write()} é atómica. A razão para o grupo limitar o tamanho máximo de cada \emph{path} a 2048 caratéres \texttt{ASCII} prende-se com a necessidade de, em cada comando enviado para o servidor, enviarmos informação adicional como o \emph{pid} do processo que enviou o comando e a abreviatura desse comando. Se o tamanho máximo de cada caminho fosse 4096 caratéres, a escrita adicional da abreviatura do comando e do \texttt{pid} do processo que o enviou iriam implicar um \texttt{write} de um número superior a 4096 caratéres, pelo que não teríamos garantias relativamente à atomicidade de cada escrita no \texttt{fifo} usado para comunicar como o servidor. Se as escritas no \texttt{fifo} não fossem atómicas, ao existir mais do que um processo \texttt{sobucli} a escrever no \emph{named pipe}, correríamos o risco de enviar partes de comandos diferentes intercaladas umas com as outras, corrompendo as mensagens que se pretende transmitir.
+\\\\\textbf{Nota:} \underline{não confundir} a macro \texttt{MAX\_PATH}, definida pelo grupo, com a macro \texttt{PATH\_MAX}, definida em \texttt{Linux} e \texttt{Mac OSX}. \texttt{PATH\_MAX} está definida na maioria dos sistemas operativos \texttt{Linux} como 4096, devido a este ser o tamanho máximo para o qual há garantia que uma invocação da \emph{system call} \texttt{write()} é atómica. A razão para o grupo limitar o tamanho máximo de cada \emph{path} a 2048 caratéres \texttt{ASCII} prende-se com a necessidade de, em cada comando enviado para o servidor, enviarmos informação adicional como o \emph{pid} do processo que enviou o comando e a abreviatura desse comando. Se o tamanho máximo de cada caminho fosse 4096 caratéres, a escrita adicional da abreviatura do comando e do \texttt{pid} do processo que o enviou iriam implicar um \texttt{write} de um número superior a 4096 caratéres, pelo que não teríamos garantias relativamente à atomicidade de cada escrita no \texttt{fifo} usado para comunicar como o servidor. Se as escritas no \texttt{fifo} não fossem atómicas, ao existir mais do que um processo \texttt{sobucli} a escrever no \emph{named pipe}, correríamos o risco de enviar partes de comandos diferentes intercaladas umas com as outras, corrompendo as mensagens que se pretende transmitir.
 
 De forma a abstrair os detalhes de implementação da \texttt{struct comando} e ao mesmo tempo proteger os conteúdos da mesma, o grupo definiu o tipo \texttt{Comando} no ficheiro \texttt{comando.h} da seguinte forma:
 
@@ -329,7 +327,7 @@ Sempre que \texttt{realpath} expande com sucesso o caminho absoluto de um fichei
 
 \subsubsection{Envio de comandos} \label{Envio de comandos}
 
-Se os argumentos de \texttt{sobucli} fossem enviados numa única linha para \texttt{sobusrv} haveria o risco de o número de bytes enviados exceder \texttt{PIPE\_BUF} e nesse caso deixaríamos de ter garantias relativamente à atomicidade das escritas, levando a que quando são executadas várias instâncias de \texttt{sobucli} concorrentemente, partes de comandos de diferentes fossem intercaladas umas com as outras. Além disso, quando o servidor responde com \texttt{SIGUSR1} ou \texttt{SIGUSR2} de forma a indicar o sucesso ou insucesso de uma operação também é necessário saber a que operação este se refere e se um único processo enviasse todos os argumentos recebidos por \texttt{sobucli} numa única escrita, dificilmente se saberia a que ficheiro se refere cada um dos sinais recebidos. Assim, de forma a garantirmos a atomicidade das escritas e ao mesmo tempo termos uma forma de saber a que ficheiro diz respeito cada um dos sinais enviados por \texttt{sobusrv} (nas várias operações que não \texttt{gc}) optamos por, para cada ficheiro dos argumentos de um dado comando, criar um processo filho de \texttt{sobucli} que fica encarregue de enviar o comando que diz respeito a esse ficheiro. A título de exemplo, se \texttt{sobucli} fosse invocado da seguinte forma \texttt{sobucli backup a.pdf b.pdf}, o processo original de \texttt{sobucli} iria criar 2 processos filho, um para enviar uma \texttt{struct Comando} que tem o seu \texttt{pid}, a abreviatura do comando (\'b\') e o caminho absoluto do ficheiro \texttt{a.pdf} e outro para enviar outra \texttt{struct Comando} com o seu \texttt{pid}, o comando \'b\' e o caminho absoluto de \texttt{b.pdf}. Assim, os comandos de \emph{backup} de um dado ficheiro, bem como \texttt{restore}, \texttt{frestore} e \texttt{delete} são enviados com através a função \texttt{send_cmd}, definida do seguinte modo:
+Se os argumentos de \texttt{sobucli} fossem enviados numa única linha para \texttt{sobusrv} haveria o risco de o número de bytes enviados exceder \texttt{PIPE\_BUF} e nesse caso deixaríamos de ter garantias relativamente à atomicidade das escritas, levando a que quando são executadas várias instâncias de \texttt{sobucli} concorrentemente, partes de comandos de diferentes fossem intercaladas umas com as outras. Além disso, quando o servidor responde com \texttt{SIGUSR1} ou \texttt{SIGUSR2} de forma a indicar o sucesso ou insucesso de uma operação também é necessário saber a que operação este se refere e se um único processo enviasse todos os argumentos recebidos por \texttt{sobucli} numa única escrita, dificilmente se saberia a que ficheiro se refere cada um dos sinais recebidos. Assim, de forma a garantirmos a atomicidade das escritas e ao mesmo tempo termos uma forma de saber a que ficheiro diz respeito cada um dos sinais enviados por \texttt{sobusrv} (nas várias operações que não \texttt{gc}) optamos por, para cada ficheiro dos argumentos de um dado comando, criar um processo filho de \texttt{sobucli} que fica encarregue de enviar o comando que diz respeito a esse ficheiro. A título de exemplo, se \texttt{sobucli} fosse invocado da seguinte forma \texttt{sobucli backup a.pdf b.pdf}, o processo original de \texttt{sobucli} iria criar 2 processos filho, um para enviar uma \texttt{struct Comando} que tem o seu \texttt{pid}, a abreviatura do comando (\'b\') e o caminho absoluto do ficheiro \texttt{a.pdf} e outro para enviar outra \texttt{struct Comando} com o seu \texttt{pid}, o comando \'b\' e o caminho absoluto de \texttt{b.pdf}. Assim, os comandos de \emph{backup} de um dado ficheiro, bem como \texttt{restore}, \texttt{frestore} e \texttt{delete} são enviados com através a função \texttt{send\_cmd}, definida do seguinte modo:
 	
 	\begin{verbatim}
 	void send_cmd(int fifo_fd, char* arg_path, char* full_path){
@@ -362,11 +360,11 @@ Se os argumentos de \texttt{sobucli} fossem enviados numa única linha para \tex
 	}
 	\end{verbatim}
 
-\texttt{fifo_fd} é o descritor do \texttt{fifo} por onde o comando será enviado, \texttt{arg\_path} é o caminho do ficheiro, tal como surge nos argumentos de \texttt{sobucli} e \texttt{full_path} é o caminho absoluto do ficheiro. No caso dos comandos de \texttt{backup} a função \texttt{send\_cmd} é sempre invocada com o \texttt{full\_path} do ficheiro a enviar para o servidor e \texttt{arg\_path} a \texttt{NULL}. No caso de \texttt{gc},  \texttt{arg\_path} é a string vazia \"\", de forma a indicar que o comando não tem argumentos. Para os restantes comandos é passado o \texttt{arg_path} e \texttt{full_path} é passado a \texttt{NULL}.
+\texttt{fifo\_fd} é o descritor do \texttt{fifo} por onde o comando será enviado, \texttt{arg\_path} é o caminho do ficheiro, tal como surge nos argumentos de \texttt{sobucli} e \texttt{full\_path} é o caminho absoluto do ficheiro. No caso dos comandos de \texttt{backup} a função \texttt{send\_cmd} é sempre invocada com o \texttt{full\_path} do ficheiro a enviar para o servidor e \texttt{arg\_path} a \texttt{NULL}. No caso de \texttt{gc},  \texttt{arg\_path} é a string vazia ``'', de forma a indicar que o comando não tem argumentos. Para os restantes comandos é passado o \texttt{arg\_path} e \texttt{full\_path} é passado a \texttt{NULL}.
 
 Também é importante notar que no início de cada invocação de \texttt{send\_cmd} verificamos o valor do variável global \texttt{nchild} e se este for maior ou igual a 5, o processo pai espera por um dos seus filhos antes de prosseguir a execução e fazer um \texttt{fork()}.
 
-Chegando ao \texttt{switch}, o processo pai faz \texttt{fork()} e o processo filho guarda na variável global \texttt{last\_file} o caminho absoluto ou relativo (dependendo do comando a executar) do ficheiro a que o comando diz respeito (no caso de \texttt{gc} não é um ficheiro, mas sim uma \emph{String} vazia tal como já foi referido). Posto isto, se o processo \texttt{full\_path} for diferente de \texttt{NULL}, o processo filho cria um \texttt{Comando} com a variável global \texttt{cmd_abbrev} e com o argumento \texttt{full\_path}, se não cria um comando com \texttt{cmd\_abbrev} e \texttt{arg\_path}. Em seguida, este comando é escrito no \texttt{fifo} e em caso de sucesso, o processo filho fecha o descritor de escrita do \texttt{fifo}, liberta \texttt{cmd} e invoca \texttt{pause()} para aguardar pelo sinal do servidor a indicar conclusão ou erros na operação.
+Chegando ao \texttt{switch}, o processo pai faz \texttt{fork()} e o processo filho guarda na variável global \texttt{last\_file} o caminho absoluto ou relativo (dependendo do comando a executar) do ficheiro a que o comando diz respeito (no caso de \texttt{gc} não é um ficheiro, mas sim uma \emph{String} vazia tal como já foi referido). Posto isto, se o processo \texttt{full\_path} for diferente de \texttt{NULL}, o processo filho cria um \texttt{Comando} com a variável global \texttt{cmd\_abbrev} e com o argumento \texttt{full\_path}, se não cria um comando com \texttt{cmd\_abbrev} e \texttt{arg\_path}. Em seguida, este comando é escrito no \texttt{fifo} e em caso de sucesso, o processo filho fecha o descritor de escrita do \texttt{fifo}, liberta \texttt{cmd} e invoca \texttt{pause()} para aguardar pelo sinal do servidor a indicar conclusão ou erros na operação.
 
 \subsubsection{Backup de diretorias}
 
@@ -412,13 +410,125 @@ Como uma execução do programa \texttt{find} pode produzir uma grande quantidad
 	\end{verbatim}
 Tal como pode ser observado, o processo que invoca a função \texttt{find()} cria um pipe anónimo e faz \texttt{fork()}. Se o \texttt{fork()} tiver sucesso, o processo filho fecha o descritor de leitura do \emph{pipe} e redireciona o \texttt{standar output} para a ponta de escrita do \emph{pipe}. Uma vez feito este redirecionamento, o processo filho invoca a \emph{system call} \texttt{execl()} para executar a função \texttt{find} com o \emph{path} passado. Já o processo pai fecha a ponta de escrita do \emph{pipe} e espera pelo filho. Se o filho tiver terminado a sua execução com sucesso, o processo pai guarda em \texttt{out\_fd} o descritor de leitura do \emph{pipe} e devolve-o para a função chamadora, para que seja possível obter cada uma das linhas produzidas por \texttt{find}.
 
-Para que a leitura de cada uma das linhas produzidas pela função \texttt{find} seja eficiente, optamos por usar a função \texttt{int readln(struct buffer_t *bufer, void **buf)} baseada no exercício 7. do guião 1. Nesta versão de \texttt{readln()}, cada invocação de \texttt{read} lê até 4096 bytes para um \emph{buffer} interno a \texttt{struct buffer\_t} e em cada chamada de \texttt{readln()} é escrita uma linha no buffer apontado por \texttt{buf}.
+Para que a leitura de cada uma das linhas produzidas pela função \texttt{find} seja eficiente, optamos por usar a função \texttt{int readln(struct buffer\_t *bufer, void **buf)} baseada no exercício 7. do guião 1. Nesta versão de \texttt{readln()}, cada invocação de \texttt{read} lê até 4096 bytes para um \emph{buffer} interno a \texttt{struct buffer\_t} e em cada chamada de \texttt{readln()} é escrita uma linha no buffer apontado por \texttt{buf}.
 
 Como o programa \texttt{find} também pode incluir diretorias no seu resultado, testamos para cada linha lida, se esta é um ficheiro com a função \texttt{is\_file} (já apresentada acima) e se for, invocamos \texttt{send\_cmd()} para que o servidor faça \emph{backup} do ficheiro encontrado na diretoria de que estamos a fazer \emph{backup} ou nas suas subdiretorias. 
 
-	
+\subsubsection{Recepção de sinais}
 
-\texttt{arg_path} designa um caminho indicado por um argumento passado para \texttt{sobucli} por um processo filho de \texttt{sobucli} que guarda na sua instância da variável global \texttt{last_file} o caminho absoluto 
+Os sinais \texttt{SIGUSR1} e \texttt{SIGUSR2}, enviados pelo servidor para indicar conclusão e insucesso de uma operação, respetivamente, são armados na função \texttt{main} através das invocaçõs \texttt{signal(SIGUSR1, sighandler)} e
+\texttt{signal(SIGUSR2, sighandler)}, antes de qualquer comando ser enviado. Assim, sempre que \texttt{send\_cmd()} é invocado, o processo filho que envia o comando já tem \texttt{SIGUSR1} e \texttt{SIGUSR2} armados e quando recebe um desses sinais salta para a função \texttt{sighandler}. 
+
+Em \texttt{sighandler}, o processo sinalizado verifica a variável global \texttt{cmd\_abbrev} para testar qual foi o comando que executou e acede ainda à variável global \texttt{last\_file} para obter o nome\/caminho do ficheiro usado no último comando. Se o sinal recebido for \texttt{SIGUSR1} (sucesso), o processo filho imprime a mensagem de sucesso adequada ao seu comando que enviou para o servidor e invoca \texttt{\_exit(0)}, se não, imprime uma mensagem de erro relativa ao comando enviado e invoca \texttt{\_exit(1)}.
+
+\section{sobusrv}
+\subsection{Utilização}
+O servidor é iniciado introduzindo apenas \texttt{sobusrv} numa shell. Este comando ignora quaisquer flags e argumentos passados e fica a correr em segundo plano, à 
+espera que um ou mais clientes lhe enviem comandos.
+\subsection{Implementação}
+Quando o servidor é iniciado, é feita a inicialiazção das variáveis com os caminhos de ficheiros que serão utilizados em todo o programa:
+\begin{enumerate}
+\item backup\_path - \$HOME/.Backup/
+\item metadata\_path -  \$HOME/.Backup/metadata/
+\item data\_path - \$HOME/.Backup/data/   
+\item fifo\_path - \$HOME/.Backup/fifo
+\item logfile\_path - \$HOME/.Backup/log.txt
+\end{enumerate}
+	
+Imediatamente a seguir, é aberto o ficheiro \texttt{log.txt} para registar os erros do servidor. O stderr é redirecionado para o log.txt
+através da system call \texttt{dup2}.
+Este redirecionamento funcionará para todos os subprocessos do processo inicial, de forma a que todos eles possam registar os seus erros. 
+
+Para podermos "desocupar" a shell, i.e. executar o processo em 
+background, faz-se um fork em que o pai termina e o filho continua a executar. Posto isto, o programa executa ainda mais um fork em que o filho abre a ponta de escrita 
+do fifo que se encontra na raíz do backup e depois invoca o pause, de forma a ficar adormecido.  
+Se não fizessémos este fork, quando todos os processos fechassem a ponta de escrita do fifo (por ex: quando todos os comandos enviados pelo 
+\texttt{sobucli} terminam), o processo "principal" do \texttt{sobusrv} que gere a crição de outros processos iria entrar em espera ativa porque não ia 
+bloquear nos \texttt{reads} da FIFO, resultando numa performance deplorável. 
+
+O processo pai continua a execução e cria 5 processos em que cada um lê um 
+comando da FIFO e começa a sua execução através da invocação da função \texttt{setupComand()}. O processo pai fica à espera que os filhos terminem e sempre que algum
+morre, é criado um novo processo que lê um comando da FIFO. Desta forma, asseguramos que, no máximo, temos 5 operações em simultâneo uma vez que só lemos um
+novo comando quando outro termina. 
+
+A função \texttt{setupComando()}, como foi dito anteriormente, lê um comando do FIFO e começa a sua execução. Mais detalhadamente, é lida uma estrutura 
+Comando do FIFO e se a leitura tiver sido bem sucedida, é executado o comando nela guardado através da função \texttt{execComando()}. Finda a execução do comando,
+é enviado para o processo cliente que escreveu o Comando na FIFO um sinal SIGUSR1 se o comando tiver sido executado com sucesso e SIGUSR2 se tiver havido algum
+erro.
+
+A função \texttt{execComando()} serve unicamente para invocar a operação correta(\texttt{backup()}, \texttt{restore()}, \texttt{frestore}, \texttt{gc()} ou \texttt{delete()})
+com os argumentos necessários, se for o caso.
+
+As operações suportadas estão implementadas, através de funções com o nome respetivo, da seguinte maneira:
+
+\subsubsection{backup(char * filepath)}
+Dado um caminho absoluto de um ficheiro, calculamos o \texttt{sha1sum} através da função \texttt{sha1sum()} e inserimos um \texttt{symlink} com o nome do ficheiro a guardar que aponta
+para \texttt{data/sum.gz}, em que \texttt{sum} é o resultado da função \texttt{sha1sum()}. Se já existir um \texttt{symlink} com esse nome na \texttt{data},
+o programa termina: definimos que para esses casos vamos manter o 1º ficheiro guardado. Caso contrário, escrevemos num ficheiro cujo nome é o nome do ficheiro a 
+guardar iniciado por um caracter não-imprimível(de forma a evitar colisões de nomes). Esse ficheiro contém o path completo para o ficheiro que foi guardado.
+Por fim, verificamos se exite na pasta \texttt{data} um arquivo cujo nome é o sha1sum do ficheiro sufixado de .gz e se não existir, fazemos o zip invocando a função \texttt{zipFile}.
+
+\subsubsection{restore(char * filename)}
+Dado o nome(e não o caminho absoluto) de um ficheiro, verificamos se esse ficheiro já foi guardado, bastando para tal ver se existe um ficheiro com
+o nome do ficheiro a restaurar na pasta metadata(no caso de existir, corresponde ao symlink para o ficheiro nos dados). Se o ficheiro não tiver sido guardado, o programa termina.
+Caso contrário, tentamos abrir o ficheiro que contém o path original do ficheiro e, em caso de sucesso, fazemos o unzip para esse local do ficheiro 
+armazenado em data. Note-se que antes de restaurarmos o ficheiro, reconstruimos o path até ao local para onde o ficheiro vai ser restaurado
+fazendo um fork e no filho:
+\begin{verbatim}
+execlp("mkdir", "mkdir", "-p", path, NULL);
+\end{verbatim}
+
+O pai faz um \texttt{wait} para assegurar que o caminho é criado antes de ele tentar restaurar o ficheiro.
+
+\subsubsection{delete(char * filename)}
+Dado o nome de um ficheiro(e não o seu caminho), verifica se existe um ficheiro com esse nome na pasta \texttt{metadata}. Se não existir, então é
+devolvido 0 a indicar sucesso - se um ficheiro não existe, o objetivo de apagar o ficheiro é trivialmente alcançado.
+Caso contrário, tentamos apagar o ficheiro que contem o path e o symlink através da \texttt{unlink}. Se não
+conseguirmos apagar um desses ficheiros, é devolvido 1 a sinalizar a ocorrência de um erro. Caso contrário, é devolvido 0.
+Esta função não apaga conteúdo na pasta \texttt{data}. Esse trabalho é deixado a cargo do comando gc.
+
+\subsubsection{gc()}
+Para cada ficheiro na pasta backup, se existir algum \texttt{symlink} para o mesmo, mantemos o ficheiro. Caso contrário, apagamos esse ficheiro.
+Para percorrer os ficheiros da pasta de backup utilizamos a função \texttt{opendir} e \texttt{readdir}. Para verificarmos se um ficheiro tem algum symlink
+na pasta \texttt{metadata} usamos a função \texttt{temLink()}, que dado o caminho absoluto para um ficheiro, devolve 1 se existe um \texttt{symlink} em \texttt{metadata} para ele e 0 caso contrário.
+
+\subsubsection{frestore(char * absolute\_path\_folder)}
+Dado um caminho absoluto de uma pasta, restaura a pasta e todos os ficheiros dessa pasta. 
+O programa percorre todos os ficheiros guardados na pasta \texttt{metadata} e, sempre que encontra um ficheiro que guarda o path de um ficheiro guardado
+(i.e. sempre que encontra um ficheiro cujo nome começa pelo caracter não imprimivel que definimos),
+lê o conteúdo desse ficheiro(que corresponde ao caminho de um ficheiro) para um buffer e se o caminho absoluto da pasta passado como argumento for um prefixo 
+do caminho que está no buffer(verificado com a função \texttt{strstr}, quer dizer que esse ficheiro estava na pasta que pretendemos restaurar e
+ por isso restauramos o ficheiro com a restore.
+
+\subsubsection{ sha1sum(char * filepath) - função auxiliar}
+Dado o caminho absoluto para um ficheiro, devolve uma string com o seu sha1sum. Esta função cria um pipe anónimo e depois faz um \texttt{fork}. No processo filho,
+fecha-se a ponta de leitura do pipe e depois, através do \texttt{dup}, redireciona o \texttt{stdout} para o pipe criado. A seguir, invoca a \texttt{execlp} 
+de forma a executar o programa \texttt{sha1sum} e escreve o seu resultado no pipe anónimo. No pai, fecha-se a ponta de escrita do pipe.
+O pai espera que o filho termine com um \texttt(wait) e verifica 
+o código de saída do filho. Se este não indicar nenhum erro, o conteúdo do pipe é lido para um buffer que foi alocado dinamicamente e o endereço desse buffer
+é devolvido.
+\subsubsection{ zipFile(char * filepath, char * newFile, int opcao) - função auxiliar}
+Dados dois caminhos absolutos, indicados no título como filepath e newFile, esta função faz zip/unzip do ficheiro especificado em filepath e coloca o resultado
+no caminho indicado por newFile, dependendo do valor \texttt{opcao}. Os valores possíveis do argumento \texttt{opcao} são \texttt{ZIP} e \texttt{UNZIP}.
+Quando é invocada, esta função cria um pipe anónimo e depois faz \texttt{fork}. O filho redireciona o \texttt{stdout} para a ponta de escrita do pipe e depois faz
+um \texttt{exec} para executar o \texttt{gzip} com a opção \texttt{-c} para imprimir o resultado da compressão no \texttt{stdout}. O processo pai entra num loop
+de leitura do contúdo do pipe e escrita no ficheiro pretendido. Quando o processo filho terminar e o fifo ``esvaziar'', o pai sai do loop e a função termina.
+
+\subsubsection{ temLink(char * filepath) - função auxiliar}
+Dado um caminho absoluto para um ficheiro, esta função devolve 1 se existe um link para esse ficheiro na pasta \texttt{metadata} e 0 caso contrário.
+Esta verificação é feita percorrendo os links da pasta \texttt{metadata} e se a expansão do caminho apontado por um link(através da \texttt{readlink}) 
+resultar num caminho igual ao que é passado como argumento, então encontramos um link para esse ficheiro e devolvemos 1. Se nenhum link na pasta verificar 
+esta condição, devolvemos 0;
+
+\section{Melhorias possíveis}
+Com o avançar do projeto apercebemo-nos que seria melhor implementar no processo ``principal'' do \texttt{sobusrv} 
+(aquele que é responsável por criar processos que executam comandos) um gestor de ficheiros abertos que consistia num buffer de 
+de strings com o nome dos ficheiros abertos nos processos filho de forma a evitar operações simultaneas no mesmo ficheiro. 
+Desta forma, tiravamos a responsabilidade aos utilizadores de não executar comandos que acedam aos mesmos ficheiros em simultâneo.
+
+No entanto, tal operação exigia uma reestrururação relativamente extensa do programa do servidor e tal seria impraticável na fase avançada
+de desenvolvimento em que nos encontravamos.
+
 
 \section{Conclusão}
 
