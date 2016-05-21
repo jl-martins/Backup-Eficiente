@@ -17,9 +17,10 @@
 #define TOSTRING(x) STRINGIFY(x)
 #define PERROR_AND_EXIT(msg) {perror(__FILE__ ":" TOSTRING(__LINE__) ":" msg); _exit(1);}
 
-/* variables used in sighandler() for printing success/error messages */
+/* variáveis usadas em sighandler() na impressão de mensagens de sucesso ou erro */
 static char cmd_abbrev = '\0';
 static char* last_file = NULL;
+/* número de filhos criados pelo processo incial */
 static int nchild;
 
 char get_cmd_abbrev(int argc, char* argv[]);

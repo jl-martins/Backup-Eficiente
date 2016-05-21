@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#define MAX_PATH 2048 /* Neste caso nao usamos o MAX_PATH e nao a macro PATH_MAX standard do linux para assegurarmos que a struct comando pode ser escrita de forma atomica com o getline */ 
-
+/* Neste caso usamos o MAX_PATH e nao a macro PATH_MAX standard do linux. 
+ * Assim assegurarmos que a struct comando pode ser escrita de forma atomica 
+ * na fifo que os clientes usam para comunicar com o servidor. */ 
+#define MAX_PATH 2048
 
 struct comando{
 	pid_t pid; /* pid do processo que enviou o comando */
